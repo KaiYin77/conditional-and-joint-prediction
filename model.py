@@ -36,15 +36,15 @@ class JointPrediction(nn.Module):
         self.hidden_dim = 128
         self.out_dim = (config['total']-config['observed'])*2
         map_in_dim = 4
-        relation_out_dim = 3
+        relation_out_dim = 3 #(Pass, Yeild, None)
         
         # initiate encoder
         self.mlp = MLP(self.in_dim, self.hidden_dim, self.hidden_dim)
         self.map_net = MapNet(map_in_dim, self.hidden_dim, self.out_dim)
 
         # initiate relation_selector
-        self.att_lane_A = MultiHeadAttention(self.hidden_dim, 8)
-        self.att_lane_B = MultiHeadAttention(self.hidden_dim, 8)
+        self.att_lane_a = MultiHeadAttention(self.hidden_dim, 8)
+        self.att_lane_b = MultiHeadAttention(self.hidden_dim, 8)
 
         # initiate relation_predictor
         self.relation_pred = RelationPredictor(self.hidden_dim, self.relation_out_dim)
@@ -54,8 +54,42 @@ class JointPrediction(nn.Module):
         self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
     
     def forward(self, data):
-        pass
+        lane_mask = data['lane_mask'].to(device)
+        x_a = data['x_a'].reshape(-1, self.in_dim).to(device)
+        x_b = data['x_b'].reshape(-1, self.in_dim).to(device)
 
+        lane_graph = data['lane_graph']
+        lane_feature = self.map_net(lane_graph)
+
+        # agents to lane attention
+        x_a = x_a.unsqueeze(0)
+        x_b = x_b.unsqueeze(0)
+        lane_feature  = lane_feature.unsqueeze(0)
+        x_a = self.att_lane_a(x_a, lane_feature, lane_feature, lane_mask)
+        x_b = self.att_lane_b(x_b, lane_feature, lane_feature, lane_mask)
+        
+        # relation predictor
+        relation = self.relation_pred(x_a, x_b)
+        pass_score = relation[0]
+        yeild_score = relation[1]
+        none_score = relation[2]
+
+        # marginal prediction
+        if none_score > pass_score and none_score > yeild_score:
+            pred_a = self.marg_pred(x_a)
+            pred_b = self.marg_pred(x_b)
+        
+        # joint prediction
+        elif pass_score > yeild_score:
+            pred_a = self.marg_pred(x_a)
+            concat = torch.cat([pred_a, x_b])
+            pred_b = self.cond_pred(concat)
+        else:
+            pred_b = self.marg_pred(x_b)
+            concat = torch.cat([pred_b, x_a])
+            pred_a = self.cond_pred(concat)
+ 
+        return pred_a, pred_b
 
 class RelationPredictor(nn.Module):
     def __init__(self, in_dim, out_dim):
@@ -65,8 +99,8 @@ class RelationPredictor(nn.Module):
                 nn.LayerNorm(out_dim),
                 nn.ReLU()
                 )
-    def forward(self, agent_A, agent_B):
-        concat = torch.cat((agent_A, agent_B))
+    def forward(self, agent_a, agent_b):
+        concat = torch.cat((agent_a, agent_b))
         x = self.decoder(concat)
         return x
 
@@ -83,8 +117,8 @@ class MultiHeadAttention(nn.Module):
         self.v_linear = nn.Linear(d_model, d_model)
         self.k_linear = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
-        # self.norm = nn.LayerNorm(d_model)
         self.out = nn.Linear(d_model, d_model)
+    
     def attention(self,q, k, v, d_k, mask=None, dropout=None):
 
         scores = torch.matmul(q, k.transpose(-2, -1)) /  math.sqrt(d_k)
@@ -125,7 +159,6 @@ class MultiHeadAttention(nn.Module):
 
         # ResNet structure
         concat = concat + iq
-        # concat = self.norm(concat)
 
         output = self.out(concat) + concat
 

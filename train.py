@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 from tqdm import tqdm
 from importlib import import_module 
+import config
 
 ### Argument parser
 parser = argparse.ArgumentParser()
@@ -23,7 +24,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 ### Setting data path
-root_dir = '/media/kevin/0a0011c4-206c-4fed-9312-2089919188d3/dataset/waymo/'
+root_dir = config.LAB_PC['waymo']
 raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive/training/'

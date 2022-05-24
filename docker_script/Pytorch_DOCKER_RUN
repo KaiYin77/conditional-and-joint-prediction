@@ -1,0 +1,8 @@
+docker run --gpus all \
+--rm \
+-ti \
+--ipc=host \
+-v /home/kevin/Documents/github_repo/Trajectory-prediction-for-ITRI/GOAT/:/goat \
+-v /media/kevin/0a0011c4-206c-4fed-9312-2089919188d3/dataset/waymo/raw/validation:/dataset/waymo/raw/validation \
+pytorch/pytorch:latest \
+

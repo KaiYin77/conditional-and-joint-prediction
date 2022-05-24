@@ -1,0 +1,7 @@
+docker run --gpus all \
+--rm \
+-ti \
+--ipc=host \
+-v /home/ee904/kevin/join_prediction/:/join_prediction \
+-v /home/ee904/kevin/dataset:/dataset \
+joint_prediction:v1

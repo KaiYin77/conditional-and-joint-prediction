@@ -12,13 +12,13 @@ file_path = os.path.abspath(__file__)
 root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
 model_name = os.path.basename(file_path).split(".")[0]
 config = {
-'epochs': 64+16,
+'epochs': 80,
 'observed': 11,
 'total': 91,
 'batch_size': 24,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
-'unique_method_name':'Joint Prediction',
+'unique_method_name':'SDC-Centric Multiple Tragets Joint Prediction',
 'dataset':'waymo',
 }
 if "save_dir" not in config:

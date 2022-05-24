@@ -8,7 +8,7 @@ from os import listdir
 from os.path import isfile, join
 
 class WaymoInteractiveDataset(Dataset):
-     def __init__(self, raw_dir, config, processed_dir, raw=False):
+    def __init__(self, raw_dir, config, processed_dir, raw=False):
         from waymo_open_dataset.protos import scenario_pb2
         import tensorflow as tf
         if not os.path.isdir(processed_dir) or raw:
@@ -21,9 +21,9 @@ class WaymoInteractiveDataset(Dataset):
         self.processed_dir = processed_dir
         self.raw = raw
         os.makedirs(self.processed_dir, exist_ok=True)
-    
+
     def __len__(self):
-        return len(self.record)
+        return len(self.record) 
     
     def __getitem__(self, idx):
         sample_path = os.path.join(self.processed_dir, f'data_{idx}.pt')
@@ -43,6 +43,9 @@ class WaymoInteractiveDataset(Dataset):
             # Get Index
             sdc_track_index = self.scenario.sdc_track_index
             objects_id_of_interest = self.scenario.objects_of_interest
+            # Skip Non interactive scenario
+            if not objects_id_of_interest:
+                return None
             
             # SDC
             sdc = self.scenario.tracks[sdc_track_index]
@@ -56,7 +59,6 @@ class WaymoInteractiveDataset(Dataset):
             # Create Agent Dataset
             interactive_tracks = [t for t in self.scenario.tracks if t.id in objects_id_of_interest] 
             agent_a = torch.Tensor([[s.center_x, s.center_y] for s in interactive_tracks[0].states])
-            #agent_a = torch.Tensor([[s.center_x, s.center_y, s.velocity_x, s.velocity_y] for s in interactive_tracks[0].states])
             valid_a = torch.Tensor([s.valid for s in interactive_tracks[0].states])
             valid_a = valid_a[:TOTAL]
             
@@ -80,15 +82,13 @@ class WaymoInteractiveDataset(Dataset):
             y_b[valid_b[OBSERVED:]==0]=0 
             
             # Calculate Relation GT 
-            # closest_distance, t1, t2 = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
-            # if closest_distance  < dynamic_threshold:
+            #closest_distance, t1, t2 = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
+            #if closest_distance <= 2:
             #   if t1 < t2:
-            #       role_a = 1 
-            #       role_b = 0
+            #       relation = 0 
             #   else:
-            #       role_a = 0
-            #       role_b = 1
-            
+            #       relation = 0
+            relation = 2
             ## concat input with object type [(Timestamp[i])->11, (x, y, object_type)->3]
             x_a = torch.cat([x_a, torch.empty(11,1).fill_(interactive_tracks[0].object_type)], -1)
             x_b = torch.cat([x_b, torch.empty(11,1).fill_(interactive_tracks[1].object_type)], -1)
@@ -116,12 +116,12 @@ class WaymoInteractiveDataset(Dataset):
             sample['x_a'] = x_a
             sample['y_a'] = y_a
             sample['valid_a'] = valid_a 
-            sample['role_a'] = torch.as_tensor(role_a)
 
             sample['x_b'] = x_b
             sample['y_b'] = y_b
             sample['valid_b'] = valid_b
-            sample['role_b'] = torch.as_tensor(role_b)
+            
+            sample['relation'] = torch.as_tensor(relation)
             
             sample['rot'] = torch.as_tensor(rot) 
             sample['orig'] = torch.as_tensor(orig) 

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import os
-from data import WaymoInteractiveDataset
+from data import WaymoDataset
 
 # GPU utilization
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -27,16 +27,16 @@ if "save_dir" not in config:
     )
 
 # top wrapper of the structure
-class Net(nn.Module):
+class JointPrediction(nn.Module):
     def __init__(self, config):
-        super(Net , self).__init__()
+        super(JointPrediction, self).__init__()
         
         # config parameter
-        self.in_dim = config['observed']*3
+        self.in_dim = config['observed']*2
         self.hidden_dim = 128
         self.out_dim = (config['total']-config['observed'])*2
         map_in_dim = 4
-        self.relation_out_dim = 3 #(Pass, Yeild, None)
+        relation_out_dim = 3 #(Pass, Yeild, None)
         
         # initiate encoder
         self.mlp = MLP(self.in_dim, self.hidden_dim, self.hidden_dim)
@@ -50,8 +50,8 @@ class Net(nn.Module):
         self.relation_pred = RelationPredictor(self.hidden_dim, self.relation_out_dim)
 
         # initiate decoder
-        #self.marg_pred = MLP(self.hidden_dim, self.hidden_dim, self.out_dim)
-        #self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
+        self.marg_pred = MLP(self.hidden_dim, self.hidden_dim, self.out_dim)
+        self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
     
     def forward(self, data):
         lane_mask = data['lane_mask'].to(device)
@@ -70,41 +70,38 @@ class Net(nn.Module):
         
         # relation predictor
         relation = self.relation_pred(x_a, x_b)
-        return relation
-        #pass_score = relation[0]
-        #yeild_score = relation[1]
-        #none_score = relation[2]
+        pass_score = relation[0]
+        yeild_score = relation[1]
+        none_score = relation[2]
 
         # marginal prediction
-        #if none_score > pass_score and none_score > yeild_score:
-        #    pred_a = self.marg_pred(x_a)
-        #    pred_b = self.marg_pred(x_b)
+        if none_score > pass_score and none_score > yeild_score:
+            pred_a = self.marg_pred(x_a)
+            pred_b = self.marg_pred(x_b)
         
         # joint prediction
-        #elif pass_score > yeild_score:
-        #    pred_a = self.marg_pred(x_a)
-        #    concat = torch.cat([pred_a, x_b])
-        #    pred_b = self.cond_pred(concat)
-        #else:
-        #    pred_b = self.marg_pred(x_b)
-        #    concat = torch.cat([pred_b, x_a])
-        #    pred_a = self.cond_pred(concat)
+        elif pass_score > yeild_score:
+            pred_a = self.marg_pred(x_a)
+            concat = torch.cat([pred_a, x_b])
+            pred_b = self.cond_pred(concat)
+        else:
+            pred_b = self.marg_pred(x_b)
+            concat = torch.cat([pred_b, x_a])
+            pred_a = self.cond_pred(concat)
  
-        #return pred_a, pred_b
+        return pred_a, pred_b
 
 class RelationPredictor(nn.Module):
     def __init__(self, in_dim, out_dim):
         super(RelationPredictor, self).__init__()
         self.decoder = nn.Sequential(
-                nn.Linear(in_dim*2, out_dim),
+                nn.Linear(in_dimi*2, out_dim),
                 nn.LayerNorm(out_dim),
-                nn.ReLU(),
-                nn.Softmax(dim=1)
+                nn.ReLU()
                 )
     def forward(self, agent_a, agent_b):
         concat = torch.cat((agent_a, agent_b))
         x = self.decoder(concat)
-
         return x
 
 # MultiHead Attention Layer
@@ -231,14 +228,3 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.mlp(x)
 
-def my_collate(batch):
-    batch = filter(lambda sample: sample is not None, batch)
-    return data.dataloader.default_collate(list(batch))
-
-def get_model():
-    net = Net(config)
-    net = net.to(device)
-    params = net.parameters()
-    opt= torch.optim.Adam(net.parameters(), lr=1e-4)
-
-    return config, WaymoInteractiveDataset, my_collate, net, opt 

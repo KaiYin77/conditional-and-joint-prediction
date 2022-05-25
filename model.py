@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import os
-from data import WaymoInteractiveDataset
+from data import WaymoInteractiveDataset, my_collate_fn
 
 # GPU utilization
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -15,7 +15,7 @@ config = {
 'epochs': 80,
 'observed': 11,
 'total': 91,
-'batch_size': 24,
+'batch_size': 1,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
 'unique_method_name':'SDC-Centric Multiple Tragets Joint Prediction',
@@ -54,7 +54,6 @@ class Net(nn.Module):
         #self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
     
     def forward(self, data):
-        lane_mask = data['lane_mask'].to(device)
         x_a = data['x_a'].reshape(-1, self.in_dim).to(device)
         x_b = data['x_b'].reshape(-1, self.in_dim).to(device)
 
@@ -65,8 +64,8 @@ class Net(nn.Module):
         x_a = x_a.unsqueeze(0)
         x_b = x_b.unsqueeze(0)
         lane_feature  = lane_feature.unsqueeze(0)
-        x_a = self.att_lane_a(x_a, lane_feature, lane_feature, lane_mask)
-        x_b = self.att_lane_b(x_b, lane_feature, lane_feature, lane_mask)
+        x_a = self.att_lane_a(x_a, lane_feature, lane_feature)
+        x_b = self.att_lane_b(x_b, lane_feature, lane_feature)
         
         # relation predictor
         relation = self.relation_pred(x_a, x_b)
@@ -228,12 +227,9 @@ class MLP(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, out_dim),
         )
+
     def forward(self, x):
         return self.mlp(x)
-
-def my_collate(batch):
-    batch = filter(lambda sample: sample is not None, batch)
-    return data.dataloader.default_collate(list(batch))
 
 def get_model():
     net = Net(config)
@@ -241,4 +237,4 @@ def get_model():
     params = net.parameters()
     opt= torch.optim.Adam(net.parameters(), lr=1e-4)
 
-    return config, WaymoInteractiveDataset, my_collate, net, opt 
+    return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

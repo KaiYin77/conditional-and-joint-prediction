@@ -134,4 +134,22 @@ class WaymoInteractiveDataset(Dataset):
         return sample
 
 
-            
+def my_collate_fn(batch):
+    batch = filter(lambda sample: sample is not None, batch)
+    
+    return data.dataloader.default_collate(list(batch))
+    
+    '''
+    Fetch sample's key
+    '''
+    #elem = [k for k, v in batch[0].items()]
+    '''
+    Prepare util function 
+    '''
+    
+    '''
+    Collate sample data to collate
+    '''
+    #collate = {key: _collate_util([d[key] for d in batch], key) for key in elem}
+    
+    #return collate

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.dataloader import default_collate
 from torch.nn.utils.rnn import pad_sequence
 import os
 from os import listdir
@@ -21,6 +22,10 @@ class WaymoInteractiveDataset(Dataset):
         self.processed_dir = processed_dir
         self.raw = raw
         os.makedirs(self.processed_dir, exist_ok=True)
+    
+    def downsample(self, polyline, desire_len):
+        index = np.linspace(0, len(polyline)-1, desire_len).astype(int)
+        return polyline[index]
 
     def __len__(self):
         return len(self.record) 
@@ -35,7 +40,7 @@ class WaymoInteractiveDataset(Dataset):
         except:
             sample = {}
             r = self.record[idx]
-            self.scenario.ParseFromString()
+            self.scenario.ParseFromString(r)
 
             OBSERVED = self.config['observed']
             TOTAL = self.config['total']
@@ -51,11 +56,10 @@ class WaymoInteractiveDataset(Dataset):
             sdc = self.scenario.tracks[sdc_track_index]
             ## sdc_heading
             theta = np.arctan2(sdc.states[OBSERVED-1].velocity_y, sdc.states[OBSERVED-1].velocity_x)
-            rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            rot = torch.Tensor([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             ## sdc_traj
             sdc_traj = torch.Tensor([[s.center_x, s.center_y] for s in sdc.states])
             orig = sdc_traj[OBSERVED-1]
-
             # Create Agent Dataset
             interactive_tracks = [t for t in self.scenario.tracks if t.id in objects_id_of_interest] 
             agent_a = torch.Tensor([[s.center_x, s.center_y] for s in interactive_tracks[0].states])
@@ -67,15 +71,15 @@ class WaymoInteractiveDataset(Dataset):
             valid_b = valid_b[:TOTAL]
             
             ## normalize to sdc
-            x_a = agent_a[:OBSERVED] - orig[OBSERVED-1]
-            y_a = agent_a[OBSERVED:TOTAL] - orig[OBSERVED-1]
+            x_a = agent_a[:OBSERVED] - orig
+            y_a = agent_a[OBSERVED:TOTAL] - orig
             x_a = x_a.mm(rot)
             y_a = y_a.mm(rot)
             x_a[valid_a[:OBSERVED]==0]=0
             y_a[valid_a[OBSERVED:]==0]=0 
             
-            x_b = agent_b[:OBSERVED] - orig[OBSERVED-1]
-            y_b = agent_b[OBSERVED:TOTAL] - orig[OBSERVED-1]
+            x_b = agent_b[:OBSERVED] - orig
+            y_b = agent_b[OBSERVED:TOTAL] - orig
             x_b = x_b.mm(rot)
             y_b = y_b.mm(rot)
             x_b[valid_b[:OBSERVED]==0]=0
@@ -126,7 +130,7 @@ class WaymoInteractiveDataset(Dataset):
             sample['rot'] = torch.as_tensor(rot) 
             sample['orig'] = torch.as_tensor(orig) 
             
-            sample['lane_graph'] = torch.zeros(1 ,10,4) if not lane_graph else torch.stack(lane_graph)
+            sample['lane_graph'] = torch.zeros(1,10,4) if not lane_graph else torch.stack(lane_graph)
             sample['scenario_id'] = self.scenario.scenario_id 
             
             torch.save(sample, sample_path) 
@@ -137,7 +141,7 @@ class WaymoInteractiveDataset(Dataset):
 def my_collate_fn(batch):
     batch = filter(lambda sample: sample is not None, batch)
     
-    return data.dataloader.default_collate(list(batch))
+    return default_collate(list(batch))
     
     '''
     Fetch sample's key

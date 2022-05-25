@@ -4,4 +4,4 @@ docker run --gpus all \
 --ipc=host \
 -v /home/ee904/kevin/join_prediction/:/join_prediction \
 -v /home/ee904/kevin/dataset:/dataset \
-joint_prediction:v1
+joint_prediction:latest

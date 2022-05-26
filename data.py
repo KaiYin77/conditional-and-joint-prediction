@@ -16,7 +16,10 @@ class WaymoInteractiveDataset(Dataset):
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
         else:
-            self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
+            raw_dataset = tf.data.TFRecordDataset(raw_dir)
+            self.record = [record.numpy() for record in raw_dataset]
+            #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
+        
         self.scenario = scenario_pb2.Scenario()
         self.config = config
         self.processed_dir = processed_dir
@@ -43,6 +46,7 @@ class WaymoInteractiveDataset(Dataset):
                     t_a = step_1
                     t_b = step_2
         return closest_distance, t_a, t_b
+
     def calculate_error_threshold(self, type_a, type_b):
         object_map = {0:"unset", 1:"vehicle", 2:"pedestrian", 3:"cyclist", 4:"other"}
         if (type_a == 1 or type_b ==1):
@@ -56,7 +60,7 @@ class WaymoInteractiveDataset(Dataset):
         return polyline[index]
 
     def __len__(self):
-        return len(self.record) 
+        return len(self.record)
     
     def __getitem__(self, idx):
         sample_path = os.path.join(self.processed_dir, f'data_{idx}.pt')

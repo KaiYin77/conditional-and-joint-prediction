@@ -43,6 +43,13 @@ class WaymoInteractiveDataset(Dataset):
                     t_a = step_1
                     t_b = step_2
         return closest_distance, t_a, t_b
+    def calculate_error_threshold(self, type_a, type_b):
+        object_map = {0:"unset", 1:"vehicle", 2:"pedestrian", 3:"cyclist", 4:"other"}
+        if (type_a == 1 or type_b ==1):
+            error_threshold = 4
+        else:
+            error_threshold = 2
+        return error_threshold
 
     def downsample(self, polyline, desire_len):
         index = np.linspace(0, len(polyline)-1, desire_len).astype(int)
@@ -106,14 +113,17 @@ class WaymoInteractiveDataset(Dataset):
             x_b[valid_b[:OBSERVED]==0]=0
             y_b[valid_b[OBSERVED:]==0]=0 
             
-            # Calculate Relation GT 
+            # calculate relation GT 
             closest_distance, t_a, t_b = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
-            #if closest_distance <= 2:
-            #   if t_a < t_b:
-            #       relation = 0 
-            #   else:
-            #       relation = 0
-            relation = 2
+            error_threshold = self.calculate_error_threshold(interactive_tracks[0].object_type, interactive_tracks[1].object_type)
+            if closest_distance <= error_threshold:
+                if t_a < t_b:
+                   relation = 0 # a pass b 
+                else:
+                   relation = 1 # a yeild b
+            else:
+                relation = 2 # a b not related
+            
             ## concat input with object type [(Timestamp[i])->11, (x, y, object_type)->3]
             x_a = torch.cat([x_a, torch.empty(11,1).fill_(interactive_tracks[0].object_type)], -1)
             x_b = torch.cat([x_b, torch.empty(11,1).fill_(interactive_tracks[1].object_type)], -1)

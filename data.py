@@ -125,7 +125,7 @@ class WaymoInteractiveDataset(Dataset):
             sample['y_b'] = y_b
             sample['valid_b'] = valid_b
             
-            sample['relation'] = torch.as_tensor(relation)
+            sample['relation'] = relation
             
             sample['rot'] = torch.as_tensor(rot) 
             sample['orig'] = torch.as_tensor(orig) 
@@ -139,21 +139,30 @@ class WaymoInteractiveDataset(Dataset):
 
 
 def my_collate_fn(batch):
-    batch = filter(lambda sample: sample is not None, batch)
-    
-    return default_collate(list(batch))
-    
+    batch = list(filter(lambda sample: sample is not None, batch))
+    if len(batch) == 0:
+        return default_collate(batch)
     '''
     Fetch sample's key
     '''
-    #elem = [k for k, v in batch[0].items()]
+    elem = [k for k, v in batch[0].items()]
     '''
     Prepare util function 
     '''
-    
+    def _collate_util(input_list, key):
+
+        if isinstance(input_list[0], torch.Tensor):
+            return torch.cat(input_list, 0)
+
+        return input_list
+
+    def _get_object_type(input_list):
+        return input_list[0,-1]
+
     '''
     Collate sample data to collate
     '''
-    #collate = {key: _collate_util([d[key] for d in batch], key) for key in elem}
-    
-    #return collate
+    collate = {key: _collate_util([d[key] for d in batch], key) for key in elem}
+    collate.update({'a_object_type':_get_object_type(collate['x_a'])})
+    collate.update({'b_object_type':_get_object_type(collate['x_b'])})
+    return collate

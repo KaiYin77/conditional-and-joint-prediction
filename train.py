@@ -24,10 +24,12 @@ parser.add_argument(
 args = parser.parse_args()
 
 ### Setting data path
-root_dir = config.LAB_PC['waymo']
-raw_dir = root_dir + 'raw/training/'
+root_dir = config.SERVER_DOCKER['waymo']
+#raw_dir = root_dir + 'raw/training/'
+raw_dir = root_dir + 'raw/validation/'
 val_raw_dir = root_dir + 'raw/validation/'
-processed_dir = root_dir + 'processed/interactive/training/'
+#processed_dir = root_dir + 'processed/interactive/training/'
+processed_dir = root_dir + 'processed/interactive/validation/'
 val_processed_dir = root_dir + 'processed/interactive/validation/'
 
 file_names = [f for f in os.listdir(raw_dir)]
@@ -72,16 +74,21 @@ def train_waymo(logger):
             file_idx = file[-14:-9]
             raw_path = raw_dir+file
             dataset = Dataset(raw_path, config, processed_dir+f'{file_idx}')
-            dataloader = DataLoader(dataset, batch_size=BATCHSIZE, collate_fn=my_collate, num_workers=8)
+            dataloader = DataLoader(dataset, batch_size=BATCHSIZE, collate_fn=my_collate, num_workers=1)
             dataiter = iter(dataloader)
             for data in dataiter:
+                if(data==None):
+                    continue
                 opt.zero_grad()
+                
                 outputs = net(data)
                 relation_class = data['relation']
+                relation_class_tensor = torch.as_tensor(relation_class).to(device)
                 
                 #convert classes to one-hot encoding
-                labels = nn.funtional.one_hot(relation_class, num_classes=3)
-                loss = criterion(outputs, labels)
+                labels = nn.functional.one_hot(relation_class_tensor, num_classes=3)
+                loss = criterion(outputs, labels.float())
+               
                 loss.backward()
                 opt.step()
 

@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 import torch.nn.functional as F
 import os
@@ -15,7 +16,7 @@ config = {
 'epochs': 80,
 'observed': 11,
 'total': 91,
-'batch_size': 1,
+'batch_size': 4,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
 'unique_method_name':'SDC-Centric Multiple Tragets Joint Prediction',
@@ -54,9 +55,13 @@ class Net(nn.Module):
         #self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
     
     def forward(self, data):
+        # agent motion encoder
         x_a = data['x_a'].reshape(-1, self.in_dim).to(device)
         x_b = data['x_b'].reshape(-1, self.in_dim).to(device)
-
+        x_a = self.mlp(x_a)
+        x_b = self.mlp(x_b)
+        
+        # lane geometric encoder
         lane_graph = data['lane_graph']
         lane_feature = self.map_net(lane_graph)
 
@@ -68,7 +73,8 @@ class Net(nn.Module):
         x_b = self.att_lane_b(x_b, lane_feature, lane_feature)
         
         # relation predictor
-        relation = self.relation_pred(x_a, x_b)
+        relation = self.relation_pred(x_a, x_b).reshape(1,3)
+       
         return relation
         #pass_score = relation[0]
         #yeild_score = relation[1]
@@ -101,7 +107,7 @@ class RelationPredictor(nn.Module):
                 nn.Softmax(dim=1)
                 )
     def forward(self, agent_a, agent_b):
-        concat = torch.cat((agent_a, agent_b))
+        concat = torch.cat((agent_a, agent_b), dim=-1)
         x = self.decoder(concat)
 
         return x

@@ -76,20 +76,27 @@ class WaymoInteractiveDataset(Dataset):
             # Get Index
             sdc_track_index = self.scenario.sdc_track_index
             objects_id_of_interest = self.scenario.objects_of_interest
-            # Skip Non interactive scenario
+            # Skip non interactive scenario
             if not objects_id_of_interest:
+                return None
+            # Skip weird case from waymo datatset 
+            if objects_id_of_interest[0] == objects_id_of_interest[1]:
                 return None
             
             # SDC
             sdc = self.scenario.tracks[sdc_track_index]
+            
             ## sdc_heading
             theta = np.arctan2(sdc.states[OBSERVED-1].velocity_y, sdc.states[OBSERVED-1].velocity_x)
             rot = torch.Tensor([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            
             ## sdc_traj
             sdc_traj = torch.Tensor([[s.center_x, s.center_y] for s in sdc.states])
             orig = sdc_traj[OBSERVED-1]
+            
             # Create Agent Dataset
             interactive_tracks = [t for t in self.scenario.tracks if t.id in objects_id_of_interest] 
+            
             agent_a = torch.Tensor([[s.center_x, s.center_y] for s in interactive_tracks[0].states])
             valid_a = torch.Tensor([s.valid for s in interactive_tracks[0].states])
             valid_a = valid_a[:TOTAL]

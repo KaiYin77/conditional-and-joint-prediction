@@ -25,10 +25,8 @@ args = parser.parse_args()
 
 ### Setting data path
 root_dir = config.SERVER_DOCKER['waymo']
-#raw_dir = root_dir + 'raw/training/'
 raw_dir = root_dir + 'raw/validation/'
 val_raw_dir = root_dir + 'raw/validation/'
-#processed_dir = root_dir + 'processed/interactive/training/'
 processed_dir = root_dir + 'processed/interactive/validation/'
 val_processed_dir = root_dir + 'processed/interactive/validation/'
 
@@ -68,6 +66,7 @@ criterion = nn.CrossEntropyLoss()
 
 def train_waymo(logger):
     running_loss = 0.0
+    steps = 0
     for epoch in epochs:
         file_iter = tqdm(file_names)
         for i, file in enumerate(file_iter):
@@ -84,15 +83,17 @@ def train_waymo(logger):
                 outputs = net(data)
                 relation_class = data['relation']
                 relation_class_tensor = torch.as_tensor(relation_class).to(device)
-                
+                 
                 #convert classes to one-hot encoding
                 labels = nn.functional.one_hot(relation_class_tensor, num_classes=3)
                 loss = criterion(outputs, labels.float())
-               
+
                 loss.backward()
                 opt.step()
 
                 running_loss += loss.item()
+                steps += 1
+            file_iter.set_description(f'Epoch: {epoch+1}, {running_loss/steps}')
 
 def val_waymo():
     pass

@@ -73,8 +73,7 @@ class Net(nn.Module):
         x_b = self.att_lane_b(x_b, lane_feature, lane_feature)
         
         # relation predictor
-        relation = self.relation_pred(x_a, x_b).reshape(1,3)
-       
+        relation = self.relation_pred(x_a, x_b).reshape(-1,3)
         return relation
         #pass_score = relation[0]
         #yeild_score = relation[1]

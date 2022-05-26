@@ -141,7 +141,7 @@ class WaymoInteractiveDataset(Dataset):
 def my_collate_fn(batch):
     batch = list(filter(lambda sample: sample is not None, batch))
     if len(batch) == 0:
-        return default_collate(batch)
+        return None
     '''
     Fetch sample's key
     '''

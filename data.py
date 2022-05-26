@@ -23,6 +23,27 @@ class WaymoInteractiveDataset(Dataset):
         self.raw = raw
         os.makedirs(self.processed_dir, exist_ok=True)
     
+    def find_closest_distance(self, y_a, valid_a, y_b, valid_b):
+        OBSERVED = self.config['observed']
+        TOTAL = self.config['total']
+        closest_distance = 99999
+        t_a = 0
+        t_b = 0
+        for step_1 in range(TOTAL-OBSERVED):
+            if not valid_a[step_1]:
+                continue
+            for step_2 in range(TOTAL-OBSERVED):
+                if not valid_b[step_2]:
+                    continue
+                distance = (y_a[step_1] - y_b[step_2]) ** 2
+                distance = distance.sum(-1)
+                distance = torch.sqrt(distance)
+                if distance < closest_distance:
+                    closest_distance = distance
+                    t_a = step_1
+                    t_b = step_2
+        return closest_distance, t_a, t_b
+
     def downsample(self, polyline, desire_len):
         index = np.linspace(0, len(polyline)-1, desire_len).astype(int)
         return polyline[index]
@@ -86,9 +107,9 @@ class WaymoInteractiveDataset(Dataset):
             y_b[valid_b[OBSERVED:]==0]=0 
             
             # Calculate Relation GT 
-            #closest_distance, t1, t2 = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
+            closest_distance, t_a, t_b = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
             #if closest_distance <= 2:
-            #   if t1 < t2:
+            #   if t_a < t_b:
             #       relation = 0 
             #   else:
             #       relation = 0

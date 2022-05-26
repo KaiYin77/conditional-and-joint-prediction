@@ -10,7 +10,8 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 # Create Weights Dir
 file_path = os.path.abspath(__file__)
-root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
+root_path = os.path.dirname(file_path)
+#root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
 model_name = os.path.basename(file_path).split(".")[0]
 config = {
 'epochs': 80,

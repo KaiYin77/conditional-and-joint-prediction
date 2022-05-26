@@ -16,10 +16,10 @@ config = {
 'epochs': 80,
 'observed': 11,
 'total': 91,
-'batch_size': 4,
+'batch_size': 24,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
-'unique_method_name':'SDC-Centric Multiple Tragets Joint Prediction',
+'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
 'dataset':'waymo',
 }
 if "save_dir" not in config:

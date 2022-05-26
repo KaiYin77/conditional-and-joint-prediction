@@ -65,15 +65,15 @@ epochs = range(CHECKPOINT, EPOCHS)
 criterion = nn.CrossEntropyLoss()
 
 def train_waymo(logger):
-    running_loss = 0.0
-    steps = 0
     for epoch in epochs:
+        running_loss = 0.0
+        steps = 0
         file_iter = tqdm(file_names)
         for i, file in enumerate(file_iter):
             file_idx = file[-14:-9]
             raw_path = raw_dir+file
             dataset = Dataset(raw_path, config, processed_dir+f'{file_idx}')
-            dataloader = DataLoader(dataset, batch_size=BATCHSIZE, collate_fn=my_collate, num_workers=1)
+            dataloader = DataLoader(dataset, batch_size=BATCHSIZE, collate_fn=my_collate, num_workers=8)
             dataiter = iter(dataloader)
             for data in dataiter:
                 if(data==None):
@@ -94,7 +94,9 @@ def train_waymo(logger):
                 running_loss += loss.item()
                 steps += 1
             file_iter.set_description(f'Epoch: {epoch+1}, {running_loss/steps}')
-
+        
+        logger.add_scalar('Loss', running_loss/steps, epoch) 
+        torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')
 def val_waymo():
     pass
 

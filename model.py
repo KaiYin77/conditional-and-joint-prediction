@@ -22,6 +22,7 @@ config = {
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
 'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
 'dataset':'waymo',
+'stage':'relation_stage',
 }
 if "save_dir" not in config:
     config["save_dir"] = os.path.join(
@@ -104,7 +105,7 @@ class RelationPredictor(nn.Module):
                 nn.Linear(in_dim*2, out_dim),
                 nn.LayerNorm(out_dim),
                 nn.ReLU(),
-                nn.Softmax(dim=-1)
+               # nn.Softmax(dim=-1)
                 )
     def forward(self, agent_a, agent_b):
         concat = torch.cat((agent_a, agent_b), dim=-1)
@@ -241,6 +242,6 @@ def get_model():
     net = Net(config)
     net = net.to(device)
     params = net.parameters()
-    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=1e-2)
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-3)
 
     return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

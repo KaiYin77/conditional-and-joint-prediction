@@ -104,7 +104,7 @@ class RelationPredictor(nn.Module):
                 nn.Linear(in_dim*2, out_dim),
                 nn.LayerNorm(out_dim),
                 nn.ReLU(),
-                nn.Softmax(dim=1)
+                nn.Softmax(dim=-1)
                 )
     def forward(self, agent_a, agent_b):
         concat = torch.cat((agent_a, agent_b), dim=-1)
@@ -241,6 +241,6 @@ def get_model():
     net = Net(config)
     net = net.to(device)
     params = net.parameters()
-    opt= torch.optim.Adam(net.parameters(), lr=1e-4)
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=1e-2)
 
     return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

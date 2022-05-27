@@ -87,7 +87,6 @@ def train_waymo(logger):
                 #convert classes to one-hot encoding
                 labels = nn.functional.one_hot(relation_class_tensor, num_classes=3)
                 loss = criterion(outputs, labels.float())
-
                 loss.backward()
                 opt.step()
 

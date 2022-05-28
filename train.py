@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 from tqdm import tqdm
 from importlib import import_module 
-import config
+import env
 
 ### Argument parser
 parser = argparse.ArgumentParser()
@@ -21,10 +21,14 @@ parser.add_argument(
         default="", 
         type=str
 )
+parser.add_argument(
+        "--debug",
+        help="debug mode",
+        action='store_true',
+)
 args = parser.parse_args()
-
 ### Setting data path
-root_dir = config.SERVER_DOCKER['waymo']
+root_dir = env.SERVER_DOCKER['waymo']
 raw_dir = root_dir + 'raw/validation/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive/validation/'
@@ -68,6 +72,7 @@ def train_waymo(logger):
     for epoch in epochs:
         running_loss = 0.0
         steps = 0
+        correct = 0
         file_iter = tqdm(file_names)
         for i, file in enumerate(file_iter):
             file_idx = file[-14:-9]
@@ -84,15 +89,20 @@ def train_waymo(logger):
                 relation_class = data['relation']
                 relation_class_tensor = torch.as_tensor(relation_class).to(device)
                  
-                #convert classes to one-hot encoding
-                labels = nn.functional.one_hot(relation_class_tensor, num_classes=3)
-                loss = criterion(outputs, labels.float())
+                if (args.debug): 
+                    print('pred_class: ', outputs)
+                    print('gt_class: ', relation_class_tensor)
+                loss = criterion(outputs, relation_class_tensor)
                 loss.backward()
                 opt.step()
+                
+                conf, index = outputs.max(-1)
+                if index == relation_class_tensor:
+                    correct += 1
 
                 running_loss += loss.item()
                 steps += 1
-            file_iter.set_description(f'Epoch: {epoch+1}, {running_loss/steps}')
+            file_iter.set_description(f'Epoch: {epoch+1}, CE: {running_loss/steps}, Accuracy: {correct/steps}')
         
         logger.add_scalar('Loss', running_loss/steps, epoch) 
         torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')

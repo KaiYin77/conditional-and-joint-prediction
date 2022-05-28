@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
-import torch
+import torch; torch.autograd.set_detect_anomaly(True)
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.nn.utils.rnn import pad_sequence
-import os
+import os; os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+from tqdm import tqdm
 from os import listdir
 from os.path import isfile, join
+import env
 
 class WaymoInteractiveDataset(Dataset):
     def __init__(self, raw_dir, config, processed_dir, raw=False):
@@ -192,10 +194,8 @@ def my_collate_fn(batch):
     Prepare util function 
     '''
     def _collate_util(input_list, key):
-
         if isinstance(input_list[0], torch.Tensor):
             return torch.cat(input_list, 0)
-
         return input_list
 
     def _get_object_type(input_list):
@@ -208,3 +208,56 @@ def my_collate_fn(batch):
     collate.update({'a_object_type':_get_object_type(collate['x_a'])})
     collate.update({'b_object_type':_get_object_type(collate['x_b'])})
     return collate
+
+def analysis_interactive_data():
+    
+    ### Setting data path
+    root_dir = env.SERVER_DOCKER['waymo']
+    val_raw_dir = root_dir + 'raw/validation/'
+    val_processed_dir = root_dir + 'processed/interactive/validation/'
+    val_file_names = [f for f in os.listdir(val_raw_dir)]
+
+    os.makedirs(val_processed_dir, exist_ok=True)
+
+    ### GPU utilization
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    
+    ### Start
+    statistic = {
+        0: 0,#pass
+        1: 0,#yeild
+        2: 0,#unrelated
+    }
+
+    Dataset = WaymoInteractiveDataset
+    config = {
+    'epochs': 80,
+    'observed': 11,
+    'total': 91,
+    'batch_size': 1,
+    'author':'Hong, Kai-Yin',
+    'account_name':'kaiyin0208.ee07@nycu.edu.tw',
+    'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
+    'dataset':'waymo',
+    'stage':'relation_stage',
+    }
+    file_iter = tqdm(val_file_names)
+    for i, file in enumerate(file_iter):
+        file_idx = file[-14:-9]
+        raw_path = val_raw_dir+file
+        dataset = Dataset(raw_path, config, val_processed_dir+f'{file_idx}')
+        dataloader = DataLoader(dataset, batch_size=config['batch_size'], collate_fn=my_collate_fn, num_workers=8)
+        dataiter = iter(dataloader)
+        for data in dataiter:
+            if(data==None):
+                continue
+            
+            relation_class_list = data['relation']
+            relation_class = relation_class_list[-1]
+            statistic[relation_class] += 1 
+    print('Total cases: ', statistic)
+def main():
+    analysis_interactive_data()
+
+if __name__ == '__main__':
+    main()

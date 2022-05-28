@@ -17,7 +17,7 @@ config = {
 'epochs': 80,
 'observed': 11,
 'total': 91,
-'batch_size': 24,
+'batch_size': 1,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
 'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
@@ -101,16 +101,11 @@ class Net(nn.Module):
 class RelationPredictor(nn.Module):
     def __init__(self, in_dim, out_dim):
         super(RelationPredictor, self).__init__()
-        self.decoder = nn.Sequential(
-                nn.Linear(in_dim*2, out_dim),
-                nn.LayerNorm(out_dim),
-                nn.ReLU(),
-               # nn.Softmax(dim=-1)
-                )
+        self.decoder = MLP(in_dim*2, 128, out_dim)
+    
     def forward(self, agent_a, agent_b):
         concat = torch.cat((agent_a, agent_b), dim=-1)
         x = self.decoder(concat)
-
         return x
 
 # MultiHead Attention Layer
@@ -242,6 +237,6 @@ def get_model():
     net = Net(config)
     net = net.to(device)
     params = net.parameters()
-    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-3)
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-5)
 
     return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

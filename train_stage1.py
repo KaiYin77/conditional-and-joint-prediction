@@ -10,8 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import pandas as pd
 from tqdm import tqdm
-from importlib import import_module
-from metric import Loss
+from importlib import import_module 
 import env
 
 ### Argument parser
@@ -29,7 +28,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 ### Setting data path
-root_dir = env.LAB_PC['waymo']
+root_dir = env.SERVER_DOCKER['waymo']
 raw_dir = root_dir + 'raw/validation/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive/validation/'
@@ -44,14 +43,11 @@ os.makedirs(processed_dir, exist_ok=True)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 ### Create the model
-model = import_module(f"module.stage_2")
+model = import_module(f"model")
 config, Dataset, my_collate, net, opt = model.get_model()
-loss_fn = Loss(args, config)
 BATCHSIZE = config['batch_size']
 
 ### Resume training state
-if(args.debug):
-    print(config)
 CHECKPOINT = 0
 EPOCHS = config['epochs']
 OBSERVED = config['observed']
@@ -64,31 +60,17 @@ if args.resume:
     ### Load previous weight
     weight = os.path.join(config['save_dir'], args.resume)
     state_dict = torch.load(weight)
-    
-    ### Initialize partial weight from pretrain weight(Relation Predictor)
-    #pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
-    #pretrain_state_dict = torch.load(pretrain_weight)
-    #state_dict = model.load_partial_weight(args, pretrain_state_dict, state_dict)
-    
     net.load_state_dict(state_dict)
     CHECKPOINT = int(args.resume[:-5])
-else:
-    state_dict = net.state_dict()
-    ### Initialize partial weight from pretrain weight(Relation Predictor)
-    pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
-    pretrain_state_dict = torch.load(pretrain_weight)
-    state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
-    
-    net.load_state_dict(state_dict)
 
 ### Prepare for model
 net.train()
 epochs = range(CHECKPOINT, EPOCHS)
+criterion = nn.CrossEntropyLoss()
 
 def train_waymo(logger):
     for epoch in epochs:
-        running_total_loss = 0.0
-        running_ade = 0.0
+        running_loss = 0.0
         steps = 0
         correct = 0
         file_iter = tqdm(file_names)
@@ -103,27 +85,27 @@ def train_waymo(logger):
                     continue
                 opt.zero_grad()
                 
-                pred_class, pred_a, pred_b = net(data)
-                loss = loss_fn(args, data, pred_class, pred_a, pred_b)
-                loss['Loss'].backward()
+                outputs = net(data)
+                relation_class = data['relation']
+                relation_class_tensor = torch.as_tensor(relation_class).to(device)
+                 
+                if (args.debug): 
+                    print('pred_class: ', outputs)
+                    print('gt_class: ', relation_class_tensor)
+                loss = criterion(outputs, relation_class_tensor)
+                loss.backward()
                 opt.step()
                 
-                # Logger 
-                relation_class = data['relation']
-                relation_class_tensor = torch.as_tensor(relation_class).to(device) 
-                conf, index = pred_class.max(-1)
+                conf, index = outputs.max(-1)
                 if index == relation_class_tensor:
                     correct += 1
 
-                running_total_loss += loss['Loss'].item()
-                running_ade += loss['ADE'].item() 
+                running_loss += loss.item()
                 steps += 1
-            file_iter.set_description(f'Epoch: {epoch+1}, Total_Loss: {running_total_loss/steps}, Relation_Accuracy: {correct/steps}, ADE: {running_ade/steps}')
+            file_iter.set_description(f'Epoch: {epoch+1}, CE: {running_loss/steps}, Accuracy: {correct/steps}')
+        
+        logger.add_scalar('Loss', running_loss/steps, epoch) 
         torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')
-        logger.add_scalar('Loss', running_total_loss/steps, epoch) 
-        logger.add_scalar('CE', correct/steps, epoch) 
-        logger.add_scalar('ADE', running_ade/steps, epoch) 
-
 def val_waymo():
     pass
 

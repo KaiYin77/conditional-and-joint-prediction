@@ -98,8 +98,12 @@ def val_relation():
                 if index == relation_class_tensor:
                     correct += 1
                     #visualize relation
-                    if (args.viz): 
-                        draw_scenario(config, data, index)
+                    if (args.viz):
+                        control = input("Visualize Next? [y/n]: ")
+                        if (control == 'n'):
+                            exit()
+                        else:
+                            draw_scenario(config, data, index)
 
                 running_loss += loss.item()
                 steps += 1
@@ -109,6 +113,7 @@ def draw_scenario(config, input_data, pred_label):
     import matplotlib
     matplotlib.use('Tkagg')
     import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
     from matplotlib.animation import FuncAnimation
     
     x_a = input_data['x_a']
@@ -120,20 +125,42 @@ def draw_scenario(config, input_data, pred_label):
     relation = input_data['relation'] 
     
     figure, axes = plt.subplots(1, 2)
-    plt.gca().set_aspect('equal', adjustable='box')
     axes[0].set_title('current')
+    axes[0].set_facecolor('#2b2b2b')
+    axes[0].axhline(y=0, ls='--', color='ghostwhite', zorder=-1)
+    axes[0].axvline(x=0, ls='--', color='ghostwhite', zorder=-2)
+    
     axes[1].set_title('future')
+    axes[1].set_facecolor('#2b2b2b')
     # draw map
     for ax in axes.flat:
         lane = input_data['lane_graph']
-        ax.plot(lane[...,0].T, lane[...,1].T, color='gray')
+        ax.plot(lane[...,0].T, lane[...,1].T, color='dimgray')
     # draw interactive trajectory
     # draw current
-    axes[0].plot(x_a[:,0].T, x_a[:,1].T, color='red', label='history_a')
-    axes[0].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='red')
-    axes[0].plot(x_b[:,0].T, x_b[:,1].T, color='darkblue', label='history_b')
-    axes[0].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='darkblue')
-    
+    axes[0].add_patch(
+            patches.Rectangle(
+                (-2.5,-1),
+                5,
+                2,
+                edgecolor='seagreen',
+                facecolor='seagreen',
+                fill=True,
+                label='sdc',
+                zorder=999,
+                ))
+    axes[0].arrow(
+            0, 0, 10, 0,
+            head_width=1.6,
+            width=0.4,
+            color='seagreen',
+            zorder=999,
+            )
+    axes[0].plot(x_a[:,0].T, x_a[:,1].T, '-', color='tomato', label='history_a')
+    axes[0].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='tomato', label='agent_a')
+    axes[0].plot(x_b[:,0].T, x_b[:,1].T, '-', color='royalblue', label='history_b')
+    axes[0].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b')
+   
     if pred_label == 0:
         #a pass b
         label = "right-of-way"
@@ -176,6 +203,12 @@ def draw_scenario(config, input_data, pred_label):
     axes[1].plot(y_b[:,0].T, y_b[:,1].T, color='darkblue', label='future_b')
     axes[1].plot(y_b[-1,0].T, y_b[-1,1].T, '>', color='darkblue', alpha=0.7)
     
+
+
+    plt.sca(axes[0])
+    plt.xlim(-50, 40)
+    plt.ylim(-50, 40)
+    plt.legend()
     plt.show()
 
 if __name__ == '__main__':

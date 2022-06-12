@@ -1,25 +1,29 @@
-import torch
+import torch; torch.autograd.set_detect_anomaly(True)
+import math
 from torch import nn
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
 import os
-from data import WaymoDataset
+from data import WaymoInteractiveDataset, my_collate_fn
 
 # GPU utilization
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # Create Weights Dir
 file_path = os.path.abspath(__file__)
-root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
+root_path = os.path.dirname(file_path)#joint_prediction/module
+root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))#joint_prediction
 model_name = os.path.basename(file_path).split(".")[0]
 config = {
 'epochs': 80,
 'observed': 11,
 'total': 91,
-'batch_size': 24,
+'batch_size': 1,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
-'unique_method_name':'SDC-Centric Multiple Tragets Joint Prediction',
+'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
 'dataset':'waymo',
+'stage':'trajectory_generate_stage',
 }
 if "save_dir" not in config:
     config["save_dir"] = os.path.join(
@@ -27,16 +31,16 @@ if "save_dir" not in config:
     )
 
 # top wrapper of the structure
-class JointPrediction(nn.Module):
+class Net(nn.Module):
     def __init__(self, config):
-        super(JointPrediction, self).__init__()
+        super(Net , self).__init__()
         
         # config parameter
-        self.in_dim = config['observed']*2
+        self.in_dim = config['observed']*3
         self.hidden_dim = 128
         self.out_dim = (config['total']-config['observed'])*2
         map_in_dim = 4
-        relation_out_dim = 3 #(Pass, Yeild, None)
+        self.relation_out_dim = 3 #(Pass, Yeild, None)
         
         # initiate encoder
         self.mlp = MLP(self.in_dim, self.hidden_dim, self.hidden_dim)
@@ -51,13 +55,16 @@ class JointPrediction(nn.Module):
 
         # initiate decoder
         self.marg_pred = MLP(self.hidden_dim, self.hidden_dim, self.out_dim)
-        self.cond_pred = MLP(self.hidden_dim*2, self.hidden_dim, self.out_dim)
+        self.cond_pred = MLP(self.hidden_dim+self.out_dim, self.hidden_dim, self.out_dim)
     
     def forward(self, data):
-        lane_mask = data['lane_mask'].to(device)
+        # agent motion encoder
         x_a = data['x_a'].reshape(-1, self.in_dim).to(device)
         x_b = data['x_b'].reshape(-1, self.in_dim).to(device)
-
+        x_a = self.mlp(x_a)
+        x_b = self.mlp(x_b)
+        
+        # lane geometric encoder
         lane_graph = data['lane_graph']
         lane_feature = self.map_net(lane_graph)
 
@@ -65,14 +72,14 @@ class JointPrediction(nn.Module):
         x_a = x_a.unsqueeze(0)
         x_b = x_b.unsqueeze(0)
         lane_feature  = lane_feature.unsqueeze(0)
-        x_a = self.att_lane_a(x_a, lane_feature, lane_feature, lane_mask)
-        x_b = self.att_lane_b(x_b, lane_feature, lane_feature, lane_mask)
+        x_a = self.att_lane_a(x_a, lane_feature, lane_feature)
+        x_b = self.att_lane_b(x_b, lane_feature, lane_feature)
         
         # relation predictor
-        relation = self.relation_pred(x_a, x_b)
-        pass_score = relation[0]
-        yeild_score = relation[1]
-        none_score = relation[2]
+        relation = self.relation_pred(x_a, x_b).reshape(-1,3)
+        pass_score = relation[-1, 0]
+        yeild_score = relation[-1, 1]
+        none_score = relation[-1, 2]
 
         # marginal prediction
         if none_score > pass_score and none_score > yeild_score:
@@ -82,25 +89,22 @@ class JointPrediction(nn.Module):
         # joint prediction
         elif pass_score > yeild_score:
             pred_a = self.marg_pred(x_a)
-            concat = torch.cat([pred_a, x_b])
+            concat = torch.cat((pred_a, x_b), dim=-1)
             pred_b = self.cond_pred(concat)
         else:
             pred_b = self.marg_pred(x_b)
-            concat = torch.cat([pred_b, x_a])
+            concat = torch.cat((pred_b, x_a), dim=-1)
             pred_a = self.cond_pred(concat)
  
-        return pred_a, pred_b
+        return relation, pred_a, pred_b
 
 class RelationPredictor(nn.Module):
     def __init__(self, in_dim, out_dim):
         super(RelationPredictor, self).__init__()
-        self.decoder = nn.Sequential(
-                nn.Linear(in_dimi*2, out_dim),
-                nn.LayerNorm(out_dim),
-                nn.ReLU()
-                )
+        self.decoder = MLP(in_dim*2, 128, out_dim)
+    
     def forward(self, agent_a, agent_b):
-        concat = torch.cat((agent_a, agent_b))
+        concat = torch.cat((agent_a, agent_b), dim=-1)
         x = self.decoder(concat)
         return x
 
@@ -225,6 +229,30 @@ class MLP(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, out_dim),
         )
+
     def forward(self, x):
         return self.mlp(x)
 
+def load_partial_weight_from_pretrain(args, pretrain_state_dict, target_state_dict):
+    if (args.debug):
+        print('Loading pretrain weight for relation predictor...')
+    for name, param in pretrain_state_dict.items():
+        if name not in target_state_dict:
+            if(args.debug):
+                print('Skip ', name)
+            continue
+        if isinstance(param, Parameter):
+            param = param.data
+        if(args.debug):
+            print('Load ', name)
+        target_state_dict[name].copy_(param)
+
+    return target_state_dict
+
+def get_model():
+    net = Net(config)
+    net = net.to(device)
+    params = net.parameters()
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-5)
+
+    return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

@@ -256,6 +256,7 @@ def analysis_interactive_data():
             relation_class = relation_class_list[-1]
             statistic[relation_class] += 1 
     print('Total cases: ', statistic)
+
 def main():
     analysis_interactive_data()
 

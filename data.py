@@ -161,6 +161,8 @@ class WaymoInteractiveDataset(Dataset):
                     lane_graph.append(normalize_polyline)
             
             # Stack all list
+            sample['sdc'] = sdc_traj
+
             sample['x_a'] = x_a
             sample['y_a'] = y_a
             sample['valid_a'] = valid_a 
@@ -251,10 +253,10 @@ def analysis_interactive_data():
         for data in dataiter:
             if(data==None):
                 continue
-            
             relation_class_list = data['relation']
             relation_class = relation_class_list[-1]
             statistic[relation_class] += 1 
+    
     print('Total cases: ', statistic)
 
 def main():

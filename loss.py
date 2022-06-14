@@ -17,7 +17,32 @@ class Loss(nn.Module):
             print('Predict len: ', self.TOTAL- self.OBSERVED)
             print('-------------------')
     
-    def ade(self, y, out, valid=None):
+    def timestamp_stack(self, func, out, y, valid):
+        p_3 = [out, y, valid, 3]
+        p_5 = [out, y, valid, 5]
+        p_8 = [out, y, valid, 8]
+        loss_3 = func(*p_3)
+        loss_5 = func(*p_5)
+        loss_8 = func(*p_8)
+        loss = torch.stack([loss_3, loss_5, loss_8]).T.reshape(-1)
+        loss = torch.cat([loss, loss.mean().unsqueeze(0)])
+        return loss
+    
+    def timestack_reshape(self, out, y, valid, time):
+        #reshape
+        out = out.reshape(self.PREDICT, 2)
+        y = y.reshape(self.PREDICT, 2)
+        #slicing
+        out = out[4:time*10:5]
+        y = y[4:time*10:5]
+        valid = valid[self.OBSERVED+4:self.OBSERVED+time*10:5]
+
+        return out, y, valid
+        
+
+    def ade(self, out, y, valid, time=8):
+        out, y, valid = self.timestack_reshape(out, y, valid, time)
+
         loss = (y-out)**2
         loss = loss.sum(-1)
         if isinstance(valid, torch.Tensor):
@@ -37,28 +62,19 @@ class Loss(nn.Module):
         
         # stage_2 loss
         ## load agent_a data
-        gt_a = data['y_a'].to(device)
+        y_a = data['y_a'].to(device)
         valid_a = data['valid_a'].to(device)
         
-        gt_a = gt_a[4:self.PREDICT:5,:]
-        valid_a = valid_a[self.OBSERVED::5]
-        pred_a = pred_a.reshape(-1, 2)
-        pred_a = pred_a[4:self.PREDICT:5,:]
-        
-        a_loss = self.ade(gt_a, pred_a, valid_a)
+        a_loss = self.timestamp_stack(self.ade, pred_a, y_a, valid_a)
         
         ## load agent_b data 
-        gt_b = data['y_b'].to(device)
+        y_b = data['y_b'].to(device)
         valid_b = data['valid_b'].to(device)
         
-        gt_b = gt_b[4:self.PREDICT:5,:]
-        valid_b = valid_b[self.OBSERVED::5]
-        pred_b = pred_b.reshape(-1, 2)
-        pred_b = pred_b[4:self.PREDICT:5,:]
-        b_loss = self.ade(gt_b, pred_b, valid_b)
+        b_loss = self.timestamp_stack(self.ade, pred_b, y_b, valid_b)
         
         # total loss
-        loss = relation_loss + (a_loss + b_loss)/2
+        loss = relation_loss + (a_loss[-1] + b_loss[-1])/2
         
         loss_dict = {
             'Loss':loss,

@@ -80,13 +80,20 @@ class Net(nn.Module):
         pass_score = relation[-1, 0]
         yeild_score = relation[-1, 1]
         none_score = relation[-1, 2]
-
+        
+        ### Ablation Study
+        
+        ## Pure marginal prediction
+        #pred_a = self.marg_pred(x_a)
+        #pred_b = self.marg_pred(x_b)
+        
+        ## Joint Prediction
         # marginal prediction
         if none_score > pass_score and none_score > yeild_score:
             pred_a = self.marg_pred(x_a)
             pred_b = self.marg_pred(x_b)
         
-        # joint prediction
+        # conditional prediction
         elif pass_score > yeild_score:
             pred_a = self.marg_pred(x_a)
             concat = torch.cat((pred_a, x_b), dim=-1)
@@ -253,6 +260,6 @@ def get_model():
     net = Net(config)
     net = net.to(device)
     params = net.parameters()
-    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-5)
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=1e-4)
 
     return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

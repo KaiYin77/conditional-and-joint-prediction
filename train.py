@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 from tqdm import tqdm
 from importlib import import_module
-from metric import Loss
+from loss import Loss
 import env
 
 ### Argument parser
@@ -116,12 +116,12 @@ def train_waymo(logger):
                     correct += 1
 
                 running_total_loss += loss['Loss'].item()
-                running_ade += loss['ADE'].item() 
+                running_ade += loss['ADE'][-1].item() 
                 steps += 1
             file_iter.set_description(f'Epoch: {epoch+1}, Total_Loss: {running_total_loss/steps}, Relation_Accuracy: {correct/steps}, ADE: {running_ade/steps}')
         torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')
         logger.add_scalar('Loss', running_total_loss/steps, epoch) 
-        logger.add_scalar('CE', correct/steps, epoch) 
+        logger.add_scalar('Relation_Acc', correct/steps, epoch) 
         logger.add_scalar('ADE', running_ade/steps, epoch) 
 
 def val_waymo():

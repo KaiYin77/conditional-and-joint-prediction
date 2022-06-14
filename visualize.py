@@ -113,10 +113,13 @@ def val_joint_prediction():
                         else:
                             pred_a = pred_a.reshape(-1, 2)
                             pred_a = pred_a[4:PREDICT:5,:].cpu().detach().numpy()
+                            
                             pred_b = pred_b.reshape(-1, 2)
                             pred_b = pred_b[4:PREDICT:5,:].cpu().detach().numpy()
                             
-                            draw_scenario(config, data, index, pred_a, pred_b)
+                            lane_score_a = net.att_lane_a.scores[0,:,0].cpu()
+                            lane_score_b = net.att_lane_b.scores[0,:,0].cpu()
+                            draw_scenario(config, data, lane_score_a, lane_score_b, index, pred_a, pred_b)
 
                 running_total_loss += loss['Loss'].item()
                 running_ade += loss['ADE'][-1].item() 
@@ -176,7 +179,7 @@ def path_smoothing(waypoints):
     smooth = interpolate.splev(u, tck)
     return smooth
 
-def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
+def draw_scenario(config, input_data, lane_score_a, lane_score_b, pred_label, pred_a=None, pred_b=None):
     import matplotlib
     matplotlib.use('Tkagg')
     import matplotlib.pyplot as plt
@@ -199,37 +202,69 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
     x_b = np.delete(x_b_raw, valid_x_b_index, 0)
     y_b = np.delete(y_b_raw, valid_y_b_index, 0)
      
-    print(valid_y_b_index)
-    print(y_b)
     relation = input_data['relation']  
     
+    # Preprocess attention scores
+    lane_score_a = lane_score_a.mean(0)
+    lane_score_a = lane_score_a * 0.125 / lane_score_a.max() 
+    lane_color_a = [(0.4118+4.7*lane_score_a[i].item(), 0.4118-lane_score_a[i].item(), 0.4118-lane_score_a[i].item()) for i in range(lane_score_a.shape[0])] 
+    lane_score_b = lane_score_b.mean(0)
+    lane_score_b = lane_score_b * 0.125 / lane_score_b.max() 
+    lane_color_b = [(0.4118+4.7*lane_score_b[i].item(), 0.4118-lane_score_b[i].item(), 0.4118-lane_score_b[i].item()) for i in range(lane_score_b.shape[0])] 
+
+    if (args.debug):
+        print('lane_score_a: ',lane_score_a)
+        print('lane_score_b: ',lane_score_b)
     if (args.debug):
         print(valid_a_index)
         print(valid_b_index)
 
-    figure, axes = plt.subplots(1, 3)
+    figure, axes = plt.subplots(1, 4)
     figure.suptitle('Scenario id: {}'.format(input_data['scenario_id']), fontsize=12)
 
     axes[0].set_title('input:\ncurrent [-1s ~ +0s]', fontsize=11)
     axes[0].set_facecolor('#2b2b2b')
     axes[0].axhline(y=0, ls='--', color='ghostwhite', zorder=-1)
     axes[0].axvline(x=0, ls='--', color='ghostwhite', zorder=-2) 
-
-    axes[1].set_title('[stage 1] output_relation:\nfuture [+0s ~ +8s]', fontsize=11)
+    
+    axes[1].set_title('[Lane Selection]:\ncurrent [+0s ~ +8s]', fontsize=11)
     axes[1].set_facecolor('#2b2b2b')
     axes[1].axhline(y=0, ls='--', color='ghostwhite', zorder=-1)
-    axes[1].axvline(x=0, ls='--', color='ghostwhite', zorder=-2)
-    
-    axes[2].set_title('[stage 2] output_predict_traj:\nfuture [+0s ~ +8s]', fontsize=11)
+    axes[1].axvline(x=0, ls='--', color='ghostwhite', zorder=-2) 
+
+    axes[2].set_title('[stage 1] output_relation:\nfuture [+0s ~ +8s]', fontsize=11)
     axes[2].set_facecolor('#2b2b2b')
     axes[2].axhline(y=0, ls='--', color='ghostwhite', zorder=-1)
     axes[2].axvline(x=0, ls='--', color='ghostwhite', zorder=-2)
     
+    axes[3].set_title('[stage 2] output_predict_traj:\nfuture [+0s ~ +8s]', fontsize=11)
+    axes[3].set_facecolor('#2b2b2b')
+    axes[3].axhline(y=0, ls='--', color='ghostwhite', zorder=-1)
+    axes[3].axvline(x=0, ls='--', color='ghostwhite', zorder=-2)
+    
     # draw map
     for ax in axes.flat:
+        #lane[...,i] => i = [x,y,type, state]
+        #type => [undefined, freeway, surface_street, bike_lane]
+        #state => [unknown, arrow_red, arrow_yellow, arrow_green, red, yellow, gren, flashing_red, flashing_yellow]
         lane = input_data['lane_graph']
         ax.plot(lane[...,0].T, lane[...,1].T, color='dimgray')
     
+    # draw map
+    lane_polys_a = []
+    lane_polys_b = []
+    for i in range(len(lane_color_a)):
+        lane_poly_a, = axes[1].plot(lane[i,:,0].T, lane[i,:,1].T, color='dimgray', lw=4, alpha=0.4)
+        lane_poly_b, = axes[1].plot(lane[i,:,0].T, lane[i,:,1].T, color='dimgray', lw=4, alpha=0.4)
+        lane_polys_a.append(lane_poly_a)
+        lane_polys_b.append(lane_poly_b)
+
+    # draw attention scores
+    for i in range(len(lane_color_a)):
+        lane_polys_a[i].set_color(lane_color_a[i])
+    for i in range(len(lane_color_b)):
+        lane_polys_b[i].set_color(lane_color_b[i])
+
     # draw interactive trajectory
     # draw input
     axes[0].add_patch(
@@ -255,7 +290,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
     axes[0].plot(x_b[:,0].T, x_b[:,1].T, color='royalblue', label='history_b')
     axes[0].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b')
     
-    # draw relation
+    # draw lane_selection
     axes[1].add_patch(
             patches.Rectangle(
                 (-2.5,-1),
@@ -269,7 +304,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
                 ))
     axes[1].arrow(
             0, 0, 10, 0,
-            head_width=1.4,
+            head_width=1.6,
             width=0.4,
             color='seagreen',
             zorder=999,
@@ -278,11 +313,35 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
     axes[1].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='tomato', label='agent_a')
     axes[1].plot(x_b[:,0].T, x_b[:,1].T, color='royalblue', label='history_b')
     axes[1].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b')
+    
+    # draw relation
+    axes[2].add_patch(
+            patches.Rectangle(
+                (-2.5,-1),
+                5,
+                2,
+                edgecolor='seagreen',
+                facecolor='seagreen',
+                fill=True,
+                label='sdc',
+                zorder=999,
+                ))
+    axes[2].arrow(
+            0, 0, 10, 0,
+            head_width=1.4,
+            width=0.4,
+            color='seagreen',
+            zorder=999,
+            )
+    axes[2].plot(x_a[:,0].T, x_a[:,1].T, color='tomato', label='history_a')
+    axes[2].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='tomato', label='agent_a')
+    axes[2].plot(x_b[:,0].T, x_b[:,1].T, color='royalblue', label='history_b')
+    axes[2].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b')
      
     if pred_label == 0:
         #a pass b
         label = "right-of-way"
-        axes[1].annotate(
+        axes[2].annotate(
                 label, 
                 (x_a[-1,0].T, x_a[-1,1].T),
                 xycoords='data',
@@ -298,7 +357,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
     elif pred_label == 1:
         # a yield b
         label = "right-of-way"
-        axes[1].annotate(
+        axes[2].annotate(
                 label, 
                 (x_b[-1,0].T, x_b[-1,1].T),
                 xycoords='data',
@@ -314,7 +373,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
     elif pred_label == 1:
         # a yield b
         label = "right-of-way"
-        axes[1].annotate(
+        axes[2].annotate(
                 label, 
                 (x_b[-1,0].T, x_b[-1,1].T),
                 xycoords='data',
@@ -326,7 +385,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
                 color='white',  
                 backgroundcolor="black"
                 )
-        axes[1].arrow(
+        axes[2].arrow(
             x_b[-1,0], x_b[-1,1], x_a[-1,0], x_a[-1,1],
             head_width=1.0,
             width=0.2,
@@ -336,7 +395,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
             )
     # draw joint prediction result
     if pred_a is not None and pred_b is not None: 
-        axes[2].add_patch(
+        axes[3].add_patch(
                 patches.Rectangle(
                     (-2.5,-1),
                     5,
@@ -347,7 +406,7 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
                     label='sdc',
                     zorder=999,
                     ))
-        axes[2].arrow(
+        axes[3].arrow(
                 0, 0, 10, 0,
                 head_width=1.6,
                 width=0.4,
@@ -355,24 +414,24 @@ def draw_scenario(config, input_data, pred_label, pred_a=None, pred_b=None):
                 zorder=999,
                 )
         
-        axes[2].plot(x_a[:,0].T, x_a[:,1].T, color='tomato', label='history_a')
-        axes[2].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='tomato', label='agent_a', zorder=999)
-        axes[2].plot(y_a[:,0].T, y_a[:,1].T, color='tomato', label='future_a', linewidth=4.5, alpha=0.5)
+        axes[3].plot(x_a[:,0].T, x_a[:,1].T, color='tomato', label='history_a')
+        axes[3].plot(x_a[-1,0].T, x_a[-1,1].T, 'o', color='tomato', label='agent_a', zorder=999)
+        axes[3].plot(y_a[:,0].T, y_a[:,1].T, color='tomato', label='future_a', linewidth=4.5, alpha=0.5)
         #insert origin point
         pred_a = np.insert(pred_a, 0, x_a[-1,:2], axis=0)
         x_smooth, y_smooth = path_smoothing(pred_a) 
-        axes[2].plot(x_smooth, y_smooth, '-', color='crimson', label='pred_a', zorder=99, alpha=1)
-        axes[2].plot(x_smooth[-1], y_smooth[-1], '>', color='crimson', alpha=0.8)
+        axes[3].plot(x_smooth, y_smooth, '-', color='crimson', label='pred_a', zorder=99, alpha=1)
+        axes[3].plot(x_smooth[-1], y_smooth[-1], '>', color='crimson', alpha=0.8)
         
-        axes[2].plot(x_b[:,0].T, x_b[:,1].T, color='royalblue', label='history_b')
-        axes[2].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b', zorder=999)
-        axes[2].plot(y_b[:,0].T, y_b[:,1].T, color='royalblue', label='future_b', linewidth=4.5, alpha=0.5)
+        axes[3].plot(x_b[:,0].T, x_b[:,1].T, color='royalblue', label='history_b')
+        axes[3].plot(x_b[-1,0].T, x_b[-1,1].T, 'o', color='royalblue', label='agent_b', zorder=999)
+        axes[3].plot(y_b[:,0].T, y_b[:,1].T, color='royalblue', label='future_b', linewidth=4.5, alpha=0.5)
         
         #insert origin point
         pred_b = np.insert(pred_b, 0, x_b[-1,:2], axis=0)
         x_smooth, y_smooth = path_smoothing(pred_b) 
-        axes[2].plot(x_smooth, y_smooth, '-', color='navy', label='pred_b', zorder=99, alpha=1)
-        axes[2].plot(x_smooth[-1], y_smooth[-1], '>', color='navy', alpha=0.8)
+        axes[3].plot(x_smooth, y_smooth, '-', color='navy', label='pred_b', zorder=99, alpha=1)
+        axes[3].plot(x_smooth[-1], y_smooth[-1], '>', color='navy', alpha=0.8)
     
     for ax in axes.flat:
         plt.sca(ax)

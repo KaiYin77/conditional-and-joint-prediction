@@ -65,20 +65,20 @@ if args.resume:
     weight = os.path.join(config['save_dir'], args.resume)
     state_dict = torch.load(weight)
     
-    ### Initialize partial weight from pretrain weight(Relation Predictor)
-    #pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
-    #pretrain_state_dict = torch.load(pretrain_weight)
-    #state_dict = model.load_partial_weight(args, pretrain_state_dict, state_dict)
-    
     net.load_state_dict(state_dict)
     CHECKPOINT = int(args.resume[:-5])
 else:
     state_dict = net.state_dict()
     ### Initialize partial weight from pretrain weight(Relation Predictor)
-    pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
-    pretrain_state_dict = torch.load(pretrain_weight)
-    state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
+    #pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
+    #pretrain_state_dict = torch.load(pretrain_weight)
+    #state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
     
+    ### Initialize partial weight from pretrain weight(rename layer name)
+    #pretrain_weight = './weights/stage_2/57.ckpt'
+    #pretrain_state_dict = torch.load(pretrain_weight)
+    #state_dict = model.update_weight(args, pretrain_state_dict, state_dict)
+    #torch.save(net.state_dict(), f'{save_dir}/rename.ckpt')
     net.load_state_dict(state_dict)
 
 ### Prepare for model

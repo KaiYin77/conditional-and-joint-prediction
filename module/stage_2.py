@@ -46,7 +46,8 @@ class Net(nn.Module):
         self.mlp = MLP(self.in_dim, self.hidden_dim, self.hidden_dim)
         self.map_net = MapNet(map_in_dim, self.hidden_dim, self.out_dim)
 
-        # initiate relation_selector
+        # initiate feature_selector
+        #self.att_lane = MultiHeadAttention(self.hidden_dim, 8)
         self.att_lane_a = MultiHeadAttention(self.hidden_dim, 8)
         self.att_lane_b = MultiHeadAttention(self.hidden_dim, 8)
 
@@ -240,13 +241,33 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.mlp(x)
 
+def update_weight(args, pretrain_state_dict, target_state_dict):
+    for name, param in pretrain_state_dict.items():
+        if name not in target_state_dict:
+            if 'att_lane_a' in name:
+                rename = name[:8] + name[10:]
+                target_state_dict[rename].copy_(param)
+                if(args.debug):
+                    print('Before: ', name)
+                    print('After: ', rename)
+            if(args.debug):
+                print('Skip: ', name)
+            continue
+        if isinstance(param, Parameter):
+            param = param.data
+        if(args.debug):
+            print('Load ', name)
+        target_state_dict[name].copy_(param)
+    
+    return target_state_dict
+
 def load_partial_weight_from_pretrain(args, pretrain_state_dict, target_state_dict):
     if (args.debug):
         print('Loading pretrain weight for relation predictor...')
     for name, param in pretrain_state_dict.items():
         if name not in target_state_dict:
             if(args.debug):
-                print('Skip ', name)
+                print('Skip: ', name)
             continue
         if isinstance(param, Parameter):
             param = param.data

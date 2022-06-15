@@ -43,7 +43,7 @@ os.makedirs(processed_dir, exist_ok=True)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 ### Create the model
-model = import_module(f"model")
+model = import_module(f"module.stage_1")
 config, Dataset, my_collate, net, opt = model.get_model()
 BATCHSIZE = config['batch_size']
 

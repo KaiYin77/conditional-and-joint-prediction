@@ -85,8 +85,8 @@ class Net(nn.Module):
         ### Ablation Study
         
         ## Pure marginal prediction
-        #pred_a = self.marg_pred(x_a)
-        #pred_b = self.marg_pred(x_b)
+        marg_a = self.marg_pred(x_a)
+        marg_b = self.marg_pred(x_b)
         
         ## Joint Prediction
         # marginal prediction
@@ -104,7 +104,7 @@ class Net(nn.Module):
             concat = torch.cat((pred_b, x_a), dim=-1)
             pred_a = self.cond_pred(concat)
  
-        return relation, pred_a, pred_b
+        return marg_a, marg_b, relation, pred_a, pred_b
 
 class RelationPredictor(nn.Module):
     def __init__(self, in_dim, out_dim):
@@ -281,6 +281,6 @@ def get_model():
     net = Net(config)
     net = net.to(device)
     params = net.parameters()
-    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-5)
+    opt= torch.optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=1e-4)
 
     return config, WaymoInteractiveDataset, my_collate_fn, net, opt 

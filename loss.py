@@ -74,7 +74,7 @@ class Loss(nn.Module):
         b_loss = self.timestamp_stack(self.ade, pred_b, y_b, valid_b)
         
         # total loss
-        loss = relation_loss + (a_loss[-1] + b_loss[-1])/2
+        loss = relation_loss/2 + (a_loss[-1] + b_loss[-1])/2
         
         loss_dict = {
             'Loss':loss,

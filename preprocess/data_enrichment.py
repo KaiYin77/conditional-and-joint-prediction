@@ -1,9 +1,12 @@
 import numpy as np
 import pandas as pd
+from scipy import interpolate
 import torch; torch.autograd.set_detect_anomaly(True)
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.nn.utils.rnn import pad_sequence
+from torch.autograd import Variable
+import torch.nn.functional as F
 import os; os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 from tqdm import tqdm
 from os import listdir
@@ -59,21 +62,67 @@ class WaymoInteractiveDataset(Dataset):
             error_threshold = 2
         return error_threshold
     
-    def dynamic_static_detection(self,x_a, v_a, x_b, v_b):
-        relative_position = x_a - x_b
-        relative_distance = torch.hypot(relative_position[:,0], relative_position[:,1])
-        relative_velocity = v_a - v_b
-        import matplotlib.pyplot as plt
-        figure, axes = plt.subplots(1, 2)
-        axes[0].plot(relative_distance)
-        axes[1].plot(relative_velocity)
-        plt.show()
-        # if relative_x is decreasing:
-        ##  if relative_velocity is increasing to 0:
-        ###     relation = 0
-        ### elif relative_velocity is decreasing to 0:
-        ###     relation = 1
-        return 2
+    def moving_average(self, x, n=3) :
+        ret = torch.cumsum(x, dim=0)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+
+    def smoothing(self, x):
+        # Create gaussian kernels
+        kernel = Variable(torch.FloatTensor([[[0.006, 0.061, 0.242, 0.383, 0.242, 0.061, 0.006]]]))
+        # Apply smoothing
+        x_smooth = F.conv1d(x.reshape(1,1,-1), kernel)
+        return x_smooth.reshape(-1)
+    
+    def check_decreasing(self, x):
+        smoothing = self.smoothing(x)
+        moving_average = self.moving_average(smoothing)
+        difference = moving_average[1:] - moving_average[:-1]
+        state = (difference < 0)
+        sum_of_true = torch.sum(state==True) 
+        decision = sum_of_true/state.shape[0] > 0.5
+        #if decision:
+        #    import matplotlib.pyplot as plt
+        #    figure, axes = plt.subplots(1, 4)
+        #    axes[0].plot(x)
+        #    axes[1].plot(smoothing)
+        #    axes[2].plot(moving_average)
+        #    axes[3].plot(difference)
+        #    plt.show()
+        return decision
+    def check_increasing(self, x):
+        smoothing = self.smoothing(x)
+        moving_average = self.moving_average(smoothing)
+        difference = moving_average[1:] - moving_average[:-1]
+        state = (difference > 0)
+        sum_of_true = torch.sum(state==True) 
+        decision = (sum_of_true/state.shape[0]) > 0.5
+        #print('increasing to zero')
+        #print('sum_of_true: ', sum_of_true)
+        #print(decision)
+        #import matplotlib.pyplot as plt
+        #figure, axes = plt.subplots(1, 4)
+        #axes[0].plot(x)
+        #axes[1].plot(smoothing)
+        #axes[2].plot(moving_average)
+        #axes[3].plot(difference)
+        #plt.show()
+        return decision
+    def dynamic_static_detection(self, x_a, v_a, x_b, v_b):
+        relative_pos = x_a - x_b
+        relative_dist = torch.hypot(relative_pos[:,0], relative_pos[:,1]) 
+        relative_vel = v_a - v_b
+        
+        if self.check_decreasing(relative_dist):
+            if self.check_increasing(relative_vel):
+                relation = 0
+            elif self.check_decreasing(relative_vel):
+                relation = 1
+            else:
+                relation = 2
+        else:
+            relation =2
+        return relation
 
     def downsample(self, polyline, desire_len):
         index = np.linspace(0, len(polyline)-1, desire_len).astype(int)

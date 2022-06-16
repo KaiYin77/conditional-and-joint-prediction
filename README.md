@@ -67,3 +67,9 @@ $$
 ### Visualization Tool
 <img src="public/debug_pipeline/debug_pipeline.png" width="100%"/>
 
+---
+
+## To-do
+- [ ] Extend to Kung-Fu road data
+- [ ] Extend to handle multiple agents (more than interactive pairs)
+- [ ] Animation tool

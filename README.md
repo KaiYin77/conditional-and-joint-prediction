@@ -59,7 +59,6 @@ $$
 
 ## How to label relation type
 <img src="public/relation_label/stage_1_label.png" width="100%"/>
-<img src="public/relation_label/stage_1_label.png" width="100%"/>
 
 ---
 
@@ -70,6 +69,8 @@ $$
 ---
 
 ## To-do
-- [ ] Extend to Kung-Fu road data
+- [ ] Extend to Kung-Fu road data (LiDAR-based)
+- [ ] Extend to NuScenes data (Fuse Radar)
 - [ ] Extend to handle multiple agents (more than interactive pairs)
+- [ ] Cluster or clique methods
 - [ ] Animation tool

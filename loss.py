@@ -11,7 +11,8 @@ class Loss(nn.Module):
         self.OBSERVED = config['observed']
         self.TOTAL = config['total']
         self.PREDICT = config['total'] - config['observed']
-        if(args.debug):
+        self.args = args
+        if(self.args.debug):
             print('-------------------')
             print('Observe len: ', self.OBSERVED)
             print('Predict len: ', self.TOTAL- self.OBSERVED)
@@ -48,7 +49,10 @@ class Loss(nn.Module):
         if isinstance(valid, torch.Tensor):
             loss[valid==0]=0
         loss = torch.sqrt(loss + 1e-8)
-        loss = loss.sum(-1)/(valid.sum(-1) + 1e-10)
+        if (valid.sum(-1)==0):
+            loss = loss.sum(-1)
+        else:
+            loss = loss.sum(-1)/(valid.sum(-1) + 1e-10)
         return loss
 
     def forward(self, args, data, pred_class, pred_a, pred_b):

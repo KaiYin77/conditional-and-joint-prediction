@@ -249,12 +249,13 @@ class WaymoInteractiveDataset(Dataset):
                     lane = map_feature.lane
                     polyline = torch.as_tensor([[feature.x, feature.y, lane.speed_limit_mph, lane.type, state] for feature in lane.polyline])
                     if polyline.shape[0] < 10: continue
-                    # normaliza to sdc coordinate
-                    normalize_polyline = torch.clone(polyline)
-                    normalize_polyline[:,:2] = normalize_polyline[:,:2] - orig
-                    normalize_polyline[:,:2] = normalize_polyline[:,:2].mm(rot)
-                    normalize_polyline = self.downsample(normalize_polyline, 10)
-                    lane_graph.append(normalize_polyline)
+                    # fine-grained
+                    for i in range(polyline_tensor.shape[0]//10):
+                        # normalize to sdc coordinate
+                        normalize_polyline = torch.clone(polyline_tensor[i*10:i*10+10])
+                        normalize_polyline[:, :2] = normalize_polyline[:, :2] - orig 
+                        normalize_polyline[:, :2] = normalize_polyline[:, :2].mm(rot)
+                        lane_graph.append(normalize_polyline)
             
             # Stack all list
             sample['sdc'] = sdc_traj

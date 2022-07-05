@@ -30,9 +30,9 @@ parser.add_argument(
 args = parser.parse_args()
 ### Setting data path
 root_dir = env.LAB_PC['waymo']
-raw_dir = root_dir + 'raw/validation/'
+raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation/'
-processed_dir = root_dir + 'processed/interactive/validation/'
+processed_dir = root_dir + 'processed/interactive/training/'
 val_processed_dir = root_dir + 'processed/interactive/validation/'
 
 file_names = [f for f in os.listdir(raw_dir)]
@@ -70,9 +70,9 @@ if args.resume:
 else:
     state_dict = net.state_dict()
     ### Initialize partial weight from pretrain weight(Relation Predictor)
-    #pretrain_weight = './weights/model/ver1.0-relation-predictor/best.ckpt'
-    #pretrain_state_dict = torch.load(pretrain_weight)
-    #state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
+    pretrain_weight = './weights/stage_1/14.ckpt'
+    pretrain_state_dict = torch.load(pretrain_weight)
+    state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
     
     ### Initialize partial weight from pretrain weight(rename layer name)
     #pretrain_weight = './weights/stage_2/57.ckpt'

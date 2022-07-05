@@ -70,6 +70,11 @@ $$
 ---
 
 ## To-do
+- [ ] Coarse-to-fine lane searching
+- [ ] Fine-grained lane info (Map intention: prior of possible paths)
 - [ ] Extend to Kung-Fu road data
 - [ ] Extend to handle multiple agents (more than interactive pairs)
 - [ ] Animation tool
+
+## Radar Prediction
+- [ ] Based on Chi-Yu Radar tracking 

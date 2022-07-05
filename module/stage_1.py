@@ -1,6 +1,6 @@
 import torch
 import math
-from torch import nn
+from torch import nn, Tensor
 import torch.nn.functional as F
 import os
 from data import WaymoInteractiveDataset, my_collate_fn
@@ -11,7 +11,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # Create Weights Dir
 file_path = os.path.abspath(__file__)
 root_path = os.path.dirname(file_path)
-#root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
+root_path = os.path.dirname(os.path.abspath(os.path.join(file_path, os.pardir)))
 model_name = os.path.basename(file_path).split(".")[0]
 config = {
 'epochs': 80,
@@ -43,6 +43,7 @@ class Net(nn.Module):
         
         # initiate encoder
         self.mlp = MLP(self.in_dim, self.hidden_dim, self.hidden_dim)
+        self.pos_encoder = PositionalEncoding(self.hidden_dim, 0.2, 10)
         self.map_net = MapNet(map_in_dim, self.hidden_dim, self.out_dim)
 
         # initiate relation_selector
@@ -61,15 +62,17 @@ class Net(nn.Module):
         x_a = data['x_a'].reshape(-1, self.in_dim).to(device)
         x_b = data['x_b'].reshape(-1, self.in_dim).to(device)
         x_a = self.mlp(x_a)
+        x_a = x_a.unsqueeze(0)
+        x_a = self.pos_encoder(x_a)
         x_b = self.mlp(x_b)
+        x_b = x_b.unsqueeze(0)
+        x_b = self.pos_encoder(x_b)
         
         # lane geometric encoder
         lane_graph = data['lane_graph']
         lane_feature = self.map_net(lane_graph)
 
         # agents to lane attention
-        x_a = x_a.unsqueeze(0)
-        x_b = x_b.unsqueeze(0)
         lane_feature  = lane_feature.unsqueeze(0)
         x_a = self.att_lane_a(x_a, lane_feature, lane_feature)
         x_b = self.att_lane_b(x_b, lane_feature, lane_feature)
@@ -107,6 +110,28 @@ class RelationPredictor(nn.Module):
         concat = torch.cat((agent_a, agent_b), dim=-1)
         x = self.decoder(concat)
         return x
+
+### Positional Encoding layer
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Args:
+            x: Tensor, shape [seq_len, batch_size, embedding_dim]
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
 
 # MultiHead Attention Layer
 class MultiHeadAttention(nn.Module):

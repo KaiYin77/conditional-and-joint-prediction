@@ -11,7 +11,7 @@ from os.path import isfile, join
 import env
 
 class WaymoInteractiveDataset(Dataset):
-    def __init__(self, raw_dir, config, processed_dir, raw=False):
+    def __init__(self, raw_dir, config, processed_dir, data_split="train", raw=False):
         from waymo_open_dataset.protos import scenario_pb2
         import tensorflow as tf
         if not os.path.isdir(processed_dir) or raw:
@@ -21,7 +21,7 @@ class WaymoInteractiveDataset(Dataset):
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
             #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
-        
+        self.data_split = data_split 
         self.scenario = scenario_pb2.Scenario()
         self.config = config
         self.processed_dir = processed_dir
@@ -102,7 +102,6 @@ class WaymoInteractiveDataset(Dataset):
             
             # Create Agent Dataset
             interactive_tracks = [t for t in self.scenario.tracks if t.id in objects_id_of_interest] 
-            
             agent_a = torch.Tensor([[s.center_x, s.center_y] for s in interactive_tracks[0].states])
             valid_a = torch.Tensor([s.valid for s in interactive_tracks[0].states])
             valid_a = valid_a[:TOTAL]
@@ -126,16 +125,19 @@ class WaymoInteractiveDataset(Dataset):
             x_b[valid_b[:OBSERVED]==0]=0
             y_b[valid_b[OBSERVED:]==0]=0 
             
-            # calculate relation GT 
-            closest_distance, t_a, t_b = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
-            error_threshold = self.calculate_error_threshold(interactive_tracks[0].object_type, interactive_tracks[1].object_type)
-            if closest_distance <= error_threshold:
-                if t_a < t_b:
-                   relation = 0 # a pass b 
-                else:
-                   relation = 1 # a yeild b
+            # calculate relation GT
+            if (self.data_split=="test"):
+                relation = -1 # not define
             else:
-                relation = 2 # a b not related
+                closest_distance, t_a, t_b = self.find_closest_distance(y_a, valid_a, y_b, valid_b)
+                error_threshold = self.calculate_error_threshold(interactive_tracks[0].object_type, interactive_tracks[1].object_type)
+                if closest_distance <= error_threshold:
+                    if t_a < t_b:
+                        relation = 0 # a pass b 
+                    else:
+                        relation = 1 # a yeild b
+                else:
+                    relation = 2 # a b not related
             
             ## concat input with object type [(Timestamp[i])->11, (x, y, object_type)->3]
             x_a = torch.cat([x_a, torch.empty(11,1).fill_(interactive_tracks[0].object_type)], -1)
@@ -166,11 +168,13 @@ class WaymoInteractiveDataset(Dataset):
             sample['x_a'] = x_a
             sample['y_a'] = y_a
             sample['valid_a'] = valid_a 
+            sample['id_a'] = interactive_tracks[0].id
 
             sample['x_b'] = x_b
             sample['y_b'] = y_b
             sample['valid_b'] = valid_b
-            
+            sample['id_b'] = interactive_tracks[1].id
+
             sample['relation'] = relation
             
             sample['rot'] = torch.as_tensor(rot) 
@@ -214,7 +218,7 @@ def my_collate_fn(batch):
 def analysis_interactive_data():
     
     ### Setting data path
-    root_dir = env.SERVER_DOCKER['waymo']
+    root_dir = env.LAB_PC['waymo']
     val_raw_dir = root_dir + 'raw/validation/'
     val_processed_dir = root_dir + 'processed/interactive/validation/'
     val_file_names = [f for f in os.listdir(val_raw_dir)]

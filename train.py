@@ -115,14 +115,14 @@ def train_waymo(logger):
                 if index == relation_class_tensor:
                     correct += 1
 
-                running_total_loss += loss['Loss'].item()
-                running_ade += loss['ADE'][-1].item() 
+                running_total_loss += loss['Loss'].detach().cpu().numpy()
+                running_ade += loss['ADE'].detach().cpu().numpy()[-1]
                 steps += 1
             file_iter.set_description(f'Epoch: {epoch+1}, Total_Loss: {running_total_loss/steps}, Relation_Accuracy: {correct/steps}, ADE: {running_ade/steps}')
+            logger.add_scalar('Loss', running_total_loss/steps, epoch*len(file_names) + i) 
+            logger.add_scalar('Relation_Acc', correct/steps, epoch*len(file_names) + i) 
+            logger.add_scalar('ADE', running_ade/steps, epoch*len(file_names) + i) 
         torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')
-        logger.add_scalar('Loss', running_total_loss/steps, epoch) 
-        logger.add_scalar('Relation_Acc', correct/steps, epoch) 
-        logger.add_scalar('ADE', running_ade/steps, epoch) 
 
 def val_waymo():
     pass

@@ -41,7 +41,24 @@ file_names = [f for f in os.listdir(raw_dir)]
 val_file_names = [f for f in os.listdir(val_raw_dir)]
 test_file_names = [f for f in os.listdir(test_raw_dir)]
 
+raw_dir_dict = {
+    "train": raw_dir,
+    "val": val_raw_dir,
+    "test": test_raw_dir,
+}
+file_names_dict = {
+    "train": file_names,
+    "val": val_file_names,
+    "test": test_file_names,
+}
 os.makedirs(processed_dir, exist_ok=True)
+os.makedirs(val_processed_dir, exist_ok=True)
+os.makedirs(test_processed_dir, exist_ok=True)
+processed_dir_dict = {
+    "train": processed_dir,
+    "val": val_processed_dir,
+    "test": test_processed_dir,
+}
 
 ### GPU utilization
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -74,7 +91,7 @@ else:
 ### Prepare for model
 net.eval()
 
-def submit_waymo():
+def submit_waymo(target_split="val"):
     from waymo_open_dataset.protos import motion_submission_pb2, scenario_pb2
     submission = motion_submission_pb2.MotionChallengeSubmission()
     submission.account_name = config['account_name']
@@ -82,13 +99,10 @@ def submit_waymo():
     submission.unique_method_name = config['unique_method_name']
     authors = submission.authors
     authors.append(config['author'])
-    '''
-    {train, val, test}
-    '''
-    target_split = "test"
-    target_file_names = test_file_names
-    target_raw_dir = test_raw_dir
-    target_processed_dir = test_processed_dir
+    
+    target_file_names = file_names_dict[target_split]
+    target_raw_dir = raw_dir_dict[target_split]
+    target_processed_dir = processed_dir_dict[target_split]
     with torch.no_grad():
         file_iter = tqdm(target_file_names)
         for file in file_iter:
@@ -115,7 +129,7 @@ def submit_waymo():
                 predict.scenario_id = data['scenario_id'][0]
                 add_joint_predicted_trajectory(predict.joint_prediction.joint_trajectories.add(), data, pred_a, pred_b)#only propose one joint prediction
                 
-    f = open('submit_test.pb', "wb")
+    f = open(f'submit/submit_{target_split}.pb', "wb")
     f.write(submission.SerializeToString())
     f.close()
 
@@ -137,7 +151,10 @@ def add_joint_predicted_trajectory(joint_trajectories, data, pred_a, pred_b):
 
 def main():
     if config['dataset'] == 'waymo':
-        submit_waymo()
+        '''
+        {val, test}
+        '''
+        submit_waymo(target_split="val")
 
 if __name__ == '__main__':
     main()

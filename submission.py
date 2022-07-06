@@ -30,7 +30,7 @@ parser.add_argument(
 parser.add_argument(
         "--split",
         help="val/test",
-        default="val",
+        default="",
         type=str,
 )
 args = parser.parse_args()

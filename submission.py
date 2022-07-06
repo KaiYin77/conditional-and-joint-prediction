@@ -13,7 +13,7 @@ from tqdm import tqdm
 from importlib import import_module
 from loss import Loss
 import env
-
+from data_val_test import WaymoInteractiveDataset, my_collate_fn 
 ### Argument parser
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -27,12 +27,21 @@ parser.add_argument(
         help="debug mode",
         action='store_true',
 )
+parser.add_argument(
+        "--split",
+        help="val/test",
+        default="val",
+        type=str,
+)
 args = parser.parse_args()
+if args.split != "val" and args.split != "test":
+    raise Warning("Please assign data split: [val/test]!!")
+
 ### Setting data path
 root_dir = env.LAB_PC['waymo']
 raw_dir = root_dir + 'raw/training/'
-val_raw_dir = root_dir + 'raw/validation/'
-test_raw_dir = root_dir + 'raw/testing/'
+val_raw_dir = root_dir + 'raw/validation_interactive/'
+test_raw_dir = root_dir + 'raw/testing_interactive/'
 processed_dir = root_dir + 'processed/interactive/training/'
 val_processed_dir = root_dir + 'processed/interactive/validation/'
 test_processed_dir = root_dir + 'processed/interactive/testing/'
@@ -65,7 +74,8 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 ### Create the model
 model = import_module(f"module.stage_2")
-config, Dataset, my_collate, net, opt = model.get_model()
+config, Dataset_train, my_collate, net, opt = model.get_model()
+Dataset = WaymoInteractiveDataset #Training & (Val, Test)
 loss_fn = Loss(args, config)
 BATCHSIZE = config['batch_size']
 
@@ -86,7 +96,7 @@ if args.weight:
     state_dict = torch.load(weight)
     net.load_state_dict(state_dict)
 else:
-    print('[ERROR]: No provided .ckpt')
+    raise Warning("Please provide .ckpt")
 
 ### Prepare for model
 net.eval()
@@ -154,7 +164,7 @@ def main():
         '''
         {val, test}
         '''
-        submit_waymo(target_split="val")
+        submit_waymo(target_split=args.split)
 
 if __name__ == '__main__':
     main()

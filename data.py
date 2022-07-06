@@ -21,7 +21,9 @@ class WaymoInteractiveDataset(Dataset):
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
             #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
-        self.data_split = data_split 
+        self.data_split = data_split
+        if data_split != "train":
+            raise Warning('Only For Training Dataset!')
         self.scenario = scenario_pb2.Scenario()
         self.config = config
         self.processed_dir = processed_dir
@@ -261,10 +263,53 @@ def analysis_interactive_data():
             relation_class = relation_class_list[-1]
             statistic[relation_class] += 1 
     
-    print('Total cases: ', statistic)
+def verify_testing_dataset_size():
+    
+    ### Setting data path
+    root_dir = env.LAB_PC['waymo']
+    test_raw_dir = root_dir + 'raw/testing/'
+    test_processed_dir = root_dir + 'processed/interactive/testing/'
+    test_file_names = [f for f in os.listdir(test_raw_dir)]
+
+    os.makedirs(test_processed_dir, exist_ok=True)
+
+    ### GPU utilization
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    
+    ### Start
+
+    Dataset = WaymoInteractiveDataset
+    config = {
+    'epochs': 80,
+    'observed': 11,
+    'total': 91,
+    'batch_size': 1,
+    'author':'Hong, Kai-Yin',
+    'account_name':'kaiyin0208.ee07@nycu.edu.tw',
+    'unique_method_name':'SDC-Centric Multiple Targets Joint Prediction',
+    'dataset':'waymo',
+    'stage':'relation_stage',
+    }
+    
+    #Size
+    size = 0
+
+    file_iter = tqdm(test_file_names)
+    for i, file in enumerate(file_iter):
+        file_idx = file[-14:-9]
+        raw_path = test_raw_dir+file
+        dataset = Dataset(raw_path, config, test_processed_dir+f'{file_idx}', data_split="test")
+        dataloader = DataLoader(dataset, batch_size=config['batch_size'], collate_fn=my_collate_fn, num_workers=1)
+        dataiter = iter(dataloader)
+        for data in dataiter:
+            if(data==None):
+                continue
+            size += 1
+    print('test_case: ', size)
 
 def main():
-    analysis_interactive_data()
+    #analysis_interactive_data()
+    verify_testing_dataset_size()
 
 if __name__ == '__main__':
     main()

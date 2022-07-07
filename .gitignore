@@ -1,4 +1,3 @@
 # ignore pycache
 *.pyc
-__pycache__/
-module/__pycache/
+**/__pycache__/

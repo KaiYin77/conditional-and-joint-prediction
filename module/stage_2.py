@@ -21,7 +21,7 @@ config = {
 'batch_size': 1,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
-'unique_method_name':'SDC-Centric Interaction Pairs Joint Prediction',
+'unique_method_name':'SDCJP',
 'dataset':'waymo',
 'stage':'trajectory_generate_stage',
 }

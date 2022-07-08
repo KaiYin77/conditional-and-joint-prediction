@@ -28,7 +28,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 ### Setting data path
-root_dir = env.LAB_PC['waymo']
+root_dir = env.SERVER_DOCKER['waymo']
 raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive_enrichment/training/'

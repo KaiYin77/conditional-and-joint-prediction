@@ -29,7 +29,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 ### Setting data path
-root_dir = env.LAB_PC['waymo']
+root_dir = env.SERVER_DOCKER['waymo']
 raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive_enrichment/training/'
@@ -70,9 +70,9 @@ if args.resume:
 else:
     state_dict = net.state_dict()
     ### Initialize partial weight from pretrain weight(Relation Predictor)
-    #pretrain_weight = './weights/stage_1/14.ckpt'
-    #pretrain_state_dict = torch.load(pretrain_weight)
-    #state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
+    pretrain_weight = './weights/stage_1_enrichment/6.ckpt'
+    pretrain_state_dict = torch.load(pretrain_weight)
+    state_dict = model.load_partial_weight_from_pretrain(args, pretrain_state_dict, state_dict)
     
     ### Initialize partial weight from pretrain weight(rename layer name)
     #pretrain_weight = './weights/stage_2/57.ckpt'

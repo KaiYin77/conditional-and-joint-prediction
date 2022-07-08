@@ -91,6 +91,7 @@ def train_waymo(logger):
         running_ade = 0.0
         steps = 0
         correct = 0
+        correct_size = 0
         file_iter = tqdm(file_names)
         for i, file in enumerate(file_iter):
             file_idx = file[-14:-9]
@@ -116,11 +117,12 @@ def train_waymo(logger):
                 correct_tensor = torch.eq(relation_class_tensor, index)
                 correct_count = torch.sum((correct_tensor==True).int())
                 correct += correct_count.item()
+                correct_size += correct_tensor.shape[-1]
 
                 running_total_loss += loss['Loss'].detach().cpu().numpy()
                 running_ade += loss['ADE'].detach().cpu().numpy()[-1]
                 steps += 1
-            file_iter.set_description(f'Epoch: {epoch+1}, Total_Loss: {running_total_loss/steps}, Relation_Accuracy: {correct/steps}, ADE: {running_ade/steps}')
+            file_iter.set_description(f'Epoch: {epoch+1}, Total_Loss: {running_total_loss/steps}, Relation_Accuracy: {correct/correct_size}, ADE: {running_ade/steps}')
             logger.add_scalar('Loss', running_total_loss/steps, epoch*len(file_names) + i) 
             logger.add_scalar('Relation_Acc', correct/steps, epoch*len(file_names) + i) 
             logger.add_scalar('ADE', running_ade/steps, epoch*len(file_names) + i) 

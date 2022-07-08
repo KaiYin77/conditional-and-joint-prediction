@@ -2,6 +2,6 @@ docker run --gpus all \
 --rm \
 -ti \
 --ipc=host \
--v /home/ee904/kevin/join_prediction/:/join_prediction \
+-v /home/ee904/kevin/Conditional_and_Joint_Prediction/:/Conditional_and_Joint_Prediction \
 -v /home/ee904/kevin/dataset:/dataset \
 joint_prediction:latest

@@ -18,7 +18,7 @@ config = {
 'epochs': 130,
 'observed': 11,
 'total': 91,
-'batch_size': 1,
+'batch_size': 24,
 'author':'Hong, Kai-Yin',
 'account_name':'kaiyin0208.ee07@nycu.edu.tw',
 'unique_method_name':'SDCJP',

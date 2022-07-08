@@ -16,17 +16,19 @@ sys.path.insert(0,'..')
 import env
 
 class WaymoInteractiveDataset(Dataset):
-    def __init__(self, raw_dir, config, processed_dir, raw=False):
+    def __init__(self, raw_dir, config, processed_dir, data_split="train", raw=False):
         from waymo_open_dataset.protos import scenario_pb2
         import tensorflow as tf
-        if not os.path.isdir(processed_dir) or raw:
+        if not os.path.isdir(processed_dir):
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
         else:
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
-            #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
         
+        self.data_split = data_split
+        if data_split != "train":
+            raise Warning('Only For Training Dataset!')
         self.scenario = scenario_pb2.Scenario()
         self.config = config
         self.processed_dir = processed_dir
@@ -121,7 +123,7 @@ class WaymoInteractiveDataset(Dataset):
             else:
                 relation = 2
         else:
-            relation =2
+            relation = 2
         return relation
 
     def downsample(self, polyline, desire_len):
@@ -233,7 +235,7 @@ class WaymoInteractiveDataset(Dataset):
                 v_b = torch.hypot(agent_b[OBSERVED:,2], agent_b[OBSERVED:,3])
                 relation = self.dynamic_static_detection(agent_a[OBSERVED:, :2], v_a, agent_b[OBSERVED:, :2], v_b)
             
-            ## concat input with object type [(Timestamp[i])->11, (x, y, heading, vx, vy, object_type)->6]
+            ## concat input with object type [(Timestamp[i])->11, (x, y, vx, vy, object_type)->5]
             x_a = torch.cat([x_a, torch.empty(11,1).fill_(interactive_tracks[0].object_type)], -1)
             x_b = torch.cat([x_b, torch.empty(11,1).fill_(interactive_tracks[1].object_type)], -1)
 
@@ -247,8 +249,8 @@ class WaymoInteractiveDataset(Dataset):
                     id = map_feature.id
                     state = state_dict[id] if id in state_dict else 0
                     lane = map_feature.lane
-                    polyline = torch.as_tensor([[feature.x, feature.y, lane.speed_limit_mph, lane.type, state] for feature in lane.polyline])
-                    if polyline.shape[0] < 10: continue
+                    polyline_tensor = torch.as_tensor([[feature.x, feature.y, lane.speed_limit_mph, lane.type, state] for feature in lane.polyline])
+                    if polyline_tensor.shape[0] < 10: continue
                     # fine-grained
                     for i in range(polyline_tensor.shape[0]//10):
                         # normalize to sdc coordinate
@@ -263,10 +265,12 @@ class WaymoInteractiveDataset(Dataset):
             sample['x_a'] = x_a
             sample['y_a'] = y_a
             sample['valid_a'] = valid_a 
+            sample['id_a'] = interactive_tracks[0].id
 
             sample['x_b'] = x_b
             sample['y_b'] = y_b
             sample['valid_b'] = valid_b
+            sample['id_b'] = interactive_tracks[1].id
             
             sample['relation'] = relation
             
@@ -276,7 +280,7 @@ class WaymoInteractiveDataset(Dataset):
             sample['lane_graph'] = torch.zeros(1,10,5) if not lane_graph else torch.stack(lane_graph)
             sample['scenario_id'] = self.scenario.scenario_id 
             
-            #torch.save(sample, sample_path) 
+            torch.save(sample, sample_path) 
         
         return sample
 

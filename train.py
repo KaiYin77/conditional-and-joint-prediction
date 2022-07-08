@@ -112,8 +112,10 @@ def train_waymo(logger):
                 relation_class = data['relation']
                 relation_class_tensor = torch.as_tensor(relation_class).to(device) 
                 conf, index = pred_class.max(-1)
-                if index == relation_class_tensor:
-                    correct += 1
+                
+                correct_tensor = torch.eq(relation_class_tensor, index)
+                correct_count = torch.sum((correct_tensor==True).int())
+                correct += correct_count.item()
 
                 running_total_loss += loss['Loss'].detach().cpu().numpy()
                 running_ade += loss['ADE'].detach().cpu().numpy()[-1]

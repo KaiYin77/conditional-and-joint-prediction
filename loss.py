@@ -30,13 +30,14 @@ class Loss(nn.Module):
         return loss
     
     def timestack_reshape(self, out, y, valid, time):
-        #reshape
-        out = out.reshape(self.PREDICT, 2)
-        y = y.reshape(self.PREDICT, 2)
+        #reshape [batch, time*coord] -> [batch, time, coord]
+        out = out.reshape(-1, self.PREDICT, 2)
+        y = y.reshape(-1, self.PREDICT, 2)
+        valid = valid.reshape(-1, self.TOTAL)
         #slicing
-        out = out[4:time*10:5]
-        y = y[4:time*10:5]
-        valid = valid[self.OBSERVED+4:self.OBSERVED+time*10:5]
+        out = out[:,4:time*10:5,:]
+        y = y[:,4:time*10:5,:]
+        valid = valid[:, self.OBSERVED+4:self.OBSERVED+time*10:5]
 
         return out, y, valid
         
@@ -45,14 +46,18 @@ class Loss(nn.Module):
         out, y, valid = self.timestack_reshape(out, y, valid, time)
 
         loss = (y-out)**2
+        #[batch, time, coord] -> [batch, time]
         loss = loss.sum(-1)
+        
         if isinstance(valid, torch.Tensor):
             loss[valid==0]=0
         loss = torch.sqrt(loss + 1e-8)
-        if (valid.sum(-1)==0):
-            loss = loss.sum(-1)
-        else:
-            loss = loss.sum(-1)/(valid.sum(-1) + 1e-10)
+        
+        #[batch, time] -> [batch]
+        loss = loss.sum(-1)/(valid.sum(-1) + 1e-10)
+        loss[valid.sum(-1)==0] = 0
+        #[batch] -> average loss across batch
+        loss = torch.mean(loss)
         return loss
 
     def forward(self, args, data, pred_class, pred_a, pred_b):

@@ -43,7 +43,7 @@ os.makedirs(processed_dir, exist_ok=True)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 ### Create the model
-model = import_module(f"module.stage_1")
+model = import_module(f"module.stage_1_enrichment")
 config, Dataset, my_collate, net, opt = model.get_model()
 BATCHSIZE = config['batch_size']
 
@@ -73,6 +73,7 @@ def train_waymo(logger):
         running_loss = 0.0
         steps = 0
         correct = 0
+        correct_size = 0
         file_iter = tqdm(file_names)
         for i, file in enumerate(file_iter):
             file_idx = file[-14:-9]
@@ -85,24 +86,30 @@ def train_waymo(logger):
                     continue
                 opt.zero_grad()
                 
-                outputs = net(data)
+                pred_class = net(data)
                 relation_class = data['relation']
                 relation_class_tensor = torch.as_tensor(relation_class).to(device)
                  
                 if (args.debug): 
-                    print('pred_class: ', outputs)
+                    print('pred_class: ', pred_class)
                     print('gt_class: ', relation_class_tensor)
-                loss = criterion(outputs, relation_class_tensor)
+                loss = criterion(pred_class, relation_class_tensor)
                 loss.backward()
                 opt.step()
                 
-                conf, index = outputs.max(-1)
-                if index == relation_class_tensor:
-                    correct += 1
+                # Logger 
+                relation_class = data['relation']
+                relation_class_tensor = torch.as_tensor(relation_class).to(device) 
+                conf, index = pred_class.max(-1)
+                
+                correct_tensor = torch.eq(relation_class_tensor, index)
+                correct_count = torch.sum((correct_tensor==True).int())
+                correct += correct_count.item()
+                correct_size += correct_tensor.shape[-1]
 
                 running_loss += loss.item()
                 steps += 1
-            file_iter.set_description(f'Epoch: {epoch+1}, CE: {running_loss/steps}, Accuracy: {correct/steps}')
+            file_iter.set_description(f'Epoch: {epoch+1}, CE: {running_loss/steps}, Accuracy: {correct/correct_size}')
         
         logger.add_scalar('Loss', running_loss/steps, epoch) 
         torch.save(net.state_dict(), f'{save_dir}/{epoch+1}.ckpt')
@@ -111,7 +118,7 @@ def val_waymo():
 
 def main():
     if config['dataset'] == 'waymo':
-        log_dir = "logs/joint/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_dir = "logs/joint_enrichment/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         logger = SummaryWriter(log_dir)
         train_waymo(logger)
         logger.close()

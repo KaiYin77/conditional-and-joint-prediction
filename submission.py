@@ -33,12 +33,18 @@ parser.add_argument(
         default="",
         type=str,
 )
+parser.add_argument(
+        "--data_on",
+        help="lab/docker",
+        default="lab",
+        type=str,
+)
 args = parser.parse_args()
 if args.split != "val" and args.split != "test":
     raise Warning("Please assign data split: [val/test]!!")
 
 ### Setting data path
-root_dir = env.LAB_PC['waymo']
+root_dir = env.WAYMO_ROOT[args.data_on]
 raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation_interactive/'
 test_raw_dir = root_dir + 'raw/testing_interactive/'

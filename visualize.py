@@ -52,10 +52,16 @@ parser.add_argument(
         help="viz mode",
         action='store_true',
 )
+parser.add_argument(
+        "--data_on",
+        help="lab/docker",
+        default="lab",
+        type=str,
+)
 args = parser.parse_args()
 
 ### Setting data path
-root_dir = env.LAB_PC['waymo']
+root_dir = env.WAYMO_ROOT[args.data_on]
 raw_dir = root_dir + 'raw/validation/'
 val_raw_dir = root_dir + 'raw/validation/'
 processed_dir = root_dir + 'processed/interactive/validation/'

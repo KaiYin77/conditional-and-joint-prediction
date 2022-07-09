@@ -70,7 +70,9 @@ $$
 
 ## To-do
 - [ ] Coarse-to-fine lane searching
-- [ ] Fine-grained lane info (Map intention: prior of possible paths)
+- [x] Fine-grained lane info (Map intention: prior of possible paths)
+- [ ] Multi-Modal 
+- [ ] Anchor-based
 - [ ] Extend to Kung-Fu road data
 - [ ] Extend to Kung-Fu road data (LiDAR-based)
 - [ ] Extend to NuScenes data (Fuse Radar)

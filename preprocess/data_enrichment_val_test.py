@@ -16,7 +16,7 @@ sys.path.insert(0,'..')
 import env
 
 class WaymoInteractiveDataset(Dataset):
-    def __init__(self, raw_dir, config, processed_dir, raw=False):
+    def __init__(self, raw_dir, config, processed_dir, data_split="val", raw=False):
         from waymo_open_dataset.protos import scenario_pb2
         import tensorflow as tf
         if not os.path.isdir(processed_dir) or raw:
@@ -25,8 +25,10 @@ class WaymoInteractiveDataset(Dataset):
         else:
             raw_dataset = tf.data.TFRecordDataset(raw_dir)
             self.record = [record.numpy() for record in raw_dataset]
-            #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))]
-        
+            #self.record = [f for f in listdir(processed_dir) if isfile(join(processed_dir, f))
+        self.data_split = data_split
+        if data_split != "val" and data_split != "test":
+            raise Warning('Only work on (Val/Test) Dataset!')
         self.scenario = scenario_pb2.Scenario()
         self.config = config
         self.processed_dir = processed_dir
@@ -148,13 +150,7 @@ class WaymoInteractiveDataset(Dataset):
             
             # Get Index
             sdc_track_index = self.scenario.sdc_track_index
-            objects_id_of_interest = self.scenario.objects_of_interest
-            # Skip non interactive scenario
-            if not objects_id_of_interest:
-                return None
-            # Skip weird case from waymo datatset 
-            if objects_id_of_interest[0] == objects_id_of_interest[1]:
-                return None
+            tracks_to_predict = [t.track_index for t in self.scenario.tracks_to_predict]
             
             # SDC
             sdc = self.scenario.tracks[sdc_track_index]
@@ -168,8 +164,7 @@ class WaymoInteractiveDataset(Dataset):
             orig = sdc_traj[OBSERVED-1]
             
             # Create Agent Dataset
-            interactive_tracks = [t for t in self.scenario.tracks if t.id in objects_id_of_interest] 
-            
+            interactive_tracks = [self.scenario.tracks[i] for i in tracks_to_predict] 
             agent_a = torch.Tensor([[s.center_x, s.center_y, s.velocity_x, s.velocity_y] for s in interactive_tracks[0].states])
             valid_a = torch.Tensor([s.valid for s in interactive_tracks[0].states])
             valid_a = valid_a[:TOTAL]
@@ -247,8 +242,8 @@ class WaymoInteractiveDataset(Dataset):
                     id = map_feature.id
                     state = state_dict[id] if id in state_dict else 0
                     lane = map_feature.lane
-                    polyline = torch.as_tensor([[feature.x, feature.y, lane.speed_limit_mph, lane.type, state] for feature in lane.polyline])
-                    if polyline.shape[0] < 10: continue
+                    polyline_tensor = torch.as_tensor([[feature.x, feature.y, lane.speed_limit_mph, lane.type, state] for feature in lane.polyline])
+                    if polyline_tensor.shape[0] < 10: continue
                     # fine-grained
                     for i in range(polyline_tensor.shape[0]//10):
                         # normalize to sdc coordinate
@@ -263,10 +258,12 @@ class WaymoInteractiveDataset(Dataset):
             sample['x_a'] = x_a
             sample['y_a'] = y_a
             sample['valid_a'] = valid_a 
+            sample['id_a'] = interactive_tracks[0].id
 
             sample['x_b'] = x_b
             sample['y_b'] = y_b
             sample['valid_b'] = valid_b
+            sample['id_b'] = interactive_tracks[1].id
             
             sample['relation'] = relation
             
@@ -276,7 +273,7 @@ class WaymoInteractiveDataset(Dataset):
             sample['lane_graph'] = torch.zeros(1,10,5) if not lane_graph else torch.stack(lane_graph)
             sample['scenario_id'] = self.scenario.scenario_id 
             
-            #torch.save(sample, sample_path) 
+            torch.save(sample, sample_path) 
         
         return sample
 

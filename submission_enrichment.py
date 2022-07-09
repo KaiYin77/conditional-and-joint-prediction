@@ -13,7 +13,7 @@ from tqdm import tqdm
 from importlib import import_module
 from loss import Loss
 import env
-from data_val_test import WaymoInteractiveDataset, my_collate_fn 
+from preprocess.data_enrichment_val_test import WaymoInteractiveDataset, my_collate_fn 
 ### Argument parser
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -48,9 +48,9 @@ root_dir = env.WAYMO_ROOT[args.data_on]
 raw_dir = root_dir + 'raw/training/'
 val_raw_dir = root_dir + 'raw/validation_interactive/'
 test_raw_dir = root_dir + 'raw/testing_interactive/'
-processed_dir = root_dir + 'processed/interactive/training/'
-val_processed_dir = root_dir + 'processed/interactive/validation/'
-test_processed_dir = root_dir + 'processed/interactive/testing/'
+processed_dir = root_dir + 'processed/interactive_enrichment/training/'
+val_processed_dir = root_dir + 'processed/interactive_enrichment/validation/'
+test_processed_dir = root_dir + 'processed/interactive_enrichment/testing/'
 
 file_names = [f for f in os.listdir(raw_dir)]
 val_file_names = [f for f in os.listdir(val_raw_dir)]
@@ -145,7 +145,7 @@ def submit_waymo(target_split="val"):
                 predict.scenario_id = data['scenario_id'][0]
                 add_joint_predicted_trajectory(predict.joint_prediction.joint_trajectories.add(), data, pred_a, pred_b)#only propose one joint prediction
                 
-    f = open(f'submit/submit_{target_split}.pb', "wb")
+    f = open(f'submit/submit_enrichment_{target_split}.pb', "wb")
     f.write(submission.SerializeToString())
     f.close()
 

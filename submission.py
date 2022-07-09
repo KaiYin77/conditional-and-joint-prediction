@@ -13,7 +13,7 @@ from tqdm import tqdm
 from importlib import import_module
 from loss import Loss
 import env
-from data_val_test import WaymoInteractiveDataset, my_collate_fn 
+from preprocess.data_val_test import WaymoInteractiveDataset, my_collate_fn 
 ### Argument parser
 parser = argparse.ArgumentParser()
 parser.add_argument(

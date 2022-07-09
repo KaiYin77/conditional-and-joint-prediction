@@ -3,7 +3,7 @@ import math
 from torch import nn, Tensor
 import torch.nn.functional as F
 import os
-from data import WaymoInteractiveDataset, my_collate_fn
+from preprocess.data import WaymoInteractiveDataset, my_collate_fn
 
 # GPU utilization
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')

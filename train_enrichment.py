@@ -37,7 +37,7 @@ args = parser.parse_args()
 ### Setting data path
 root_dir = env.WAYMO_ROOT[args.data_on]
 raw_dir = root_dir + 'raw/training/'
-val_raw_dir = root_dir + 'raw/validation/'
+val_raw_dir = root_dir + 'raw/validation_interactive/'
 processed_dir = root_dir + 'processed/interactive_enrichment/training/'
 val_processed_dir = root_dir + 'processed/interactive_enrichment/validation/'
 

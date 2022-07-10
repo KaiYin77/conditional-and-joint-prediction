@@ -94,6 +94,7 @@ epochs = range(CHECKPOINT, EPOCHS)
 def train_waymo(logger):
     for epoch in epochs:
         running_total_loss = 0.0
+        running_scene_ce = 0.0
         running_nll = 0.0
         running_ade = 0.0
         running_fde = 0.0
@@ -128,6 +129,7 @@ def train_waymo(logger):
                 correct_size += correct_tensor.shape[-1]
 
                 running_total_loss += loss['Loss'].detach().cpu().numpy()
+                running_scene_ce += loss['scene_ce'].detach().cpu().numpy()
                 running_nll += loss['minNLL'].detach().cpu().numpy()[-1]
                 running_ade += loss['minADE'].detach().cpu().numpy()[-1]
                 running_fde += loss['minFDE'].detach().cpu().numpy()[-1]
@@ -135,13 +137,15 @@ def train_waymo(logger):
             file_iter.set_description(
                     f'Epoch: {epoch+1}/ '+
                     f'Loss: {running_total_loss/steps}/ '+
-                    f'Acc: {correct/correct_size}/ '+
+                    f'Rel_Acc: {correct/correct_size}/ '+
+                    f'Scene_CE: {running_scene_ce/steps}/ '+
                     f'NLL: {running_nll/steps}/ '+
                     f'ADE: {running_ade/steps}/ '+
                     f'FDE: {running_fde/steps}/ '
             )
             logger.add_scalar('Loss', running_total_loss/steps, epoch*len(file_names) + i) 
             logger.add_scalar('Relation_Acc', correct/steps, epoch*len(file_names) + i) 
+            logger.add_scalar('Scene_CE', running_scene_ce/steps, epoch*len(file_names) + i) 
             logger.add_scalar('NLL', running_nll/steps, epoch*len(file_names) + i) 
             logger.add_scalar('ADE', running_ade/steps, epoch*len(file_names) + i) 
             logger.add_scalar('FDE', running_fde/steps, epoch*len(file_names) + i) 

@@ -197,6 +197,8 @@ def non_maxmimum_suppression(data, pred_a, pred_b, scene_scores):
             '''
             Could be further develop to decrease overlap rate
             '''
+        if len(select_by_nms) == 6:
+            break
 
     idxs = index.detach().cpu().numpy()[::-1].tolist()     
     i = 0
@@ -205,6 +207,7 @@ def non_maxmimum_suppression(data, pred_a, pred_b, scene_scores):
         if idx not in select_by_nms:
             select_by_nms.append(idx)
         i += 1
+    assert len(select_by_nms) == 6
     return select_by_nms
     
 def main():

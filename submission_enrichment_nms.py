@@ -79,7 +79,7 @@ processed_dir_dict = {
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 ### Create the model
-model = import_module(f"module.stage_2_enrichment")
+model = import_module(f"module.stage_2_enrichment_nms")
 config, Dataset_train, my_collate, net, opt = model.get_model()
 Dataset = WaymoInteractiveDataset #Training & (Val, Test)
 loss_fn = Loss(args, config)
@@ -134,26 +134,27 @@ def submit_waymo(target_split="val"):
                 # De-normalize
                 rot = data['rot'].to(device)
                 orig = data['orig'].to(device)
-                pred_a = mu_a.reshape(12, -1, 2)
-                pred_a = torch.matmul(pred_a, torch.inverse(rot))+orig
-                pred_a = mu_a[:,4:80:5,:]
-                pred_b = mu_b.reshape(12, -1, 2)
-                pred_b = torch.matmul(pred_b, torch.inverse(rot))+orig
-                pred_b = mu_b[:,4:80:5,:]
+                mu_a = mu_a.reshape(12, -1, 2)
+                mu_a = torch.matmul(mu_a, torch.inverse(rot))+orig
+                mu_a = mu_a[:,4:80:5,:]
+                mu_b = mu_b.reshape(12, -1, 2)
+                mu_b = torch.matmul(mu_b, torch.inverse(rot))+orig
+                mu_b = mu_b[:,4:80:5,:]
                 # NMS selection
-                select_by_nms = []
+                scene_scores = scene_scores.reshape(12)
+                select_by_nms = non_maxmimum_suppression(data, mu_a, mu_b, scene_scores)
                 # Packing
                 predict = submission.scenario_predictions.add()
                 predict.scenario_id = data['scenario_id'][0]
                 # Submit top 6 
-                for k in range(select_by_nms):
-                    add_joint_predicted_trajectory(predict.joint_prediction.joint_trajectories.add(), data, pred_a[k], pred_b[k])
+                for k in select_by_nms:
+                    add_joint_predicted_trajectory(predict.joint_prediction.joint_trajectories.add(), data, mu_a[k], mu_b[k], scene_scores[k])
                 
     f = open(f'submit/submit_enrichment_{target_split}.pb', "wb")
     f.write(submission.SerializeToString())
     f.close()
 
-def add_joint_predicted_trajectory(joint_trajectories, data, pred_a, pred_b):
+def add_joint_predicted_trajectory(joint_trajectories, data, pred_a, pred_b, scene_score):
     from waymo_open_dataset.protos import motion_submission_pb2
     object_a_trajectory = motion_submission_pb2.ObjectTrajectory()
     object_a_trajectory.object_id = data['id_a'][0] 
@@ -167,10 +168,48 @@ def add_joint_predicted_trajectory(joint_trajectories, data, pred_a, pred_b):
     
     joint_trajectories.trajectories.append(object_a_trajectory)
     joint_trajectories.trajectories.append(object_b_trajectory)
-    joint_trajectories.confidence = 1
-def non_maxmimum_suppression(data, pred_a, pred_b, scene_scores):
-    # sorting to find top 6 out of 12
+    joint_trajectories.confidence = scene_score
+
+def non_overlapping_rule():
     pass
+
+def pairwise_distance(input_1, input_2):
+    pdist = nn.PairwiseDistance(p=2)
+    output = pdist(input_1, input_2)
+    return output.item()
+
+def non_diverse_rule(pred_selected, pred):
+    fixed_threshold = 2.0
+    if pairwise_distance(pred_selected[-1], pred[-1]) < fixed_threshold:
+        return True
+    return False
+
+def non_maxmimum_suppression(data, pred_a, pred_b, scene_scores):
+    scores, index = scene_scores.sort(dim=0, descending=False)
+    select_by_nms = []
+    candidate_index = index.detach().cpu().numpy().tolist()
+    while len(candidate_index) > 0:
+        select_by_nms.append(candidate_index.pop())
+        selected = select_by_nms[-1]
+        for idx in candidate_index:
+            if non_diverse_rule(pred_a[selected], pred_a[idx]) and non_diverse_rule(pred_b[selected], pred_b[idx]):
+                candidate_index.remove(idx)
+            '''
+            Could be further develop to decrease overlap rate
+            '''
+        if len(select_by_nms) == 6:
+            break
+
+    idxs = index.detach().cpu().numpy()[::-1].tolist()     
+    i = 0
+    while len(select_by_nms) < 6:
+        idx = idxs[i]
+        if idx not in select_by_nms:
+            select_by_nms.append(idx)
+        i += 1
+    assert len(select_by_nms) == 6
+    return select_by_nms
+    
 def main():
     if config['dataset'] == 'waymo':
         '''
